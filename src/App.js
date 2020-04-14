@@ -56,7 +56,7 @@ export default class App extends Component {
         }
       },
       isFullscreenEnabled: false,
-      video: ''
+      video: 'https://docbot-s3.s3.us-east-2.amazonaws.com/test/outpy3.mp4'
     };
   }
   render() {
