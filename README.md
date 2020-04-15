@@ -1,3 +1,46 @@
+Video object and classification annotator based on [DataTurk's](https://github.com/DataTurks/DataTurks) VideoAnnotator
+
+Data formats
+
+annotations
+
+[
+	{
+		frame: int,
+	    type: 'object'|'class', //object - bounding box, class - single value assigned to frame
+	    label: str,
+	    persist: bool, //if persist = true, label every frame after the same label until a frame with an existing label and different value is found
+	    color: str,
+	    value: {tlx: int, tly: int, brx: int, bry: int}|str
+	}
+]
+
+labels
+
+[
+	{
+		type: 'object',
+		label: 'obj1',
+		persist: false,
+		values: ['BOX'], //box
+		color: '#3949ab'
+	},
+	{
+		type: 'class',
+		label: 'flag1',
+		persist: true,
+		values: [true, false],
+		color: '#039be5'
+	},
+	{
+		type: 'class',
+		label: 'flag2',
+		persist: true,
+		values: [0, 1, 2, 3, false],
+		color: '#00897b'
+	}
+}
+
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
 ## Available Scripts
