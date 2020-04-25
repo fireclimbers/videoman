@@ -55,7 +55,7 @@ export default class App extends Component {
           key: "z"
         }
       },
-      isFullscreenEnabled: false,
+      //isFullscreenEnabled: false,
       video: 'https://docbot-s3.s3.us-east-2.amazonaws.com/test/outpy3.mp4'
     };
   }
@@ -64,8 +64,8 @@ export default class App extends Component {
       <div>
         <VideoAnnotator
           shortcuts={this.state.shortcuts}
-          defaultShape="rectangle"
-          fullScreen={this.state.isFullscreenEnabled}
+          //defaultShape="rectangle"
+          //fullScreen={this.state.isFullscreenEnabled}
           video={this.state.video} />
       </div>
     );
