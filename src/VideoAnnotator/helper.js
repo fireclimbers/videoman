@@ -29,3 +29,27 @@ export const getWindowDimeshions = () => {
 export const findIndex = (list, func) => {
   return list.indexOf(list.filter(func)[0]);
 }
+
+
+export const shortcuts = {
+        forward: {
+          qualifier: "",
+          key: "."
+        },
+        backward: {
+          qualifier: "",
+          key: ","
+        },
+        fast_forward: {
+          qualifier: "",
+          key: "right"
+        },
+        fast_backward: {
+          qualifier: "",
+          key: "left"
+        },
+        delete: {
+          qualifier: "",
+          key: "backspace"
+        }
+      }
