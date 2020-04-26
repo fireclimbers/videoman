@@ -324,6 +324,10 @@ export default class VideoAnnotator extends Component {
     if (this.state.selectedObjLabel.label) {
       // Event for creating new box (creating first corner and confirming other corner)
 
+      if (this.state.annotations.filter((itm) => this.state.selectedObjLabel.label === itm.label && this.getCurrentFrame() === itm.frame).length > 0){
+        return;
+      }
+
       // Deselect all existing boxes
       this.setState({
         selectedObjAnnotation: {}
@@ -472,7 +476,7 @@ export default class VideoAnnotator extends Component {
       this.setState({
         annotations,
         selectedObjAnnotation: annotationObj,//this.state.selectedObjLabel.label,
-        selectedObjLabel: {},
+        //selectedObjLabel: {},
         newBox: [],
         mouseDown: false,
         newBoxDrag: false
