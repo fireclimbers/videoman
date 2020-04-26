@@ -256,7 +256,7 @@ export default class VideoAnnotator extends Component {
           y = y * this.canvas.offsetHeight;
           width = width * this.canvas.offsetWidth;
           height = height * this.canvas.offsetHeight;
-          this.DrawBoard.rect(width, height).id(id).attr({ x: x, y: y, fill: `${lineColor}`, cursor: 'pointer', 'fill-opacity': `${this.state.opacity}`, stroke: '#1ae04e' });
+          this.DrawBoard.rect(width, height).id(id).attr({ x: x, y: y, fill: `${lineColor}`, cursor: 'pointer', 'fill-opacity': `${this.state.opacity}`, stroke: lineColor });
         }
       } else {
         let el = SVG.get(id)
@@ -415,8 +415,12 @@ export default class VideoAnnotator extends Component {
       currentRect.brx = getPoint(currentRect.brx+dx);
       currentRect.bry = getPoint(currentRect.bry+dy);
 
-      this.state.annotations[this.state.dragRect].value = currentRect;
-      this.setState({ annotations:this.state.annotations, dragging: true, dragPoint: [event.offsetX, event.offsetY] });
+      //this.state.annotations[this.state.dragRect].value = currentRect;
+      this.setState(prevState => ({ 
+        annotations: prevState.annotations.map((itm,idx) => { return this.state.dragRect === idx ? { ...itm, value: currentRect } : itm }),
+        dragging: true, 
+        dragPoint: [event.offsetX, event.offsetY] 
+      }));
     } else if (this.state.newBox.length > 0) {
       // If mouse is holding down to create new box
 
@@ -508,8 +512,11 @@ export default class VideoAnnotator extends Component {
         currentRect.brx = newx;
         currentRect.bry = newy;
       }
-      this.state.annotations[this.state.dragRect].value = currentRect;
-      this.setState({ annotations:this.state.annotations, pointDrag: false });
+      //this.state.annotations[this.state.dragRect].value = currentRect;
+      this.setState(prevState => ({ 
+        annotations: prevState.annotations.map((itm,idx) => { return this.state.dragRect === idx ? { ...itm, value: currentRect } : itm }),
+        pointDrag: false 
+      }));
     } else if (this.state.rectDrag) {
       // If mouse had been holding down middle of a box
 
@@ -526,8 +533,15 @@ export default class VideoAnnotator extends Component {
         currentRect.brx = getPoint(currentRect.brx+dx);
         currentRect.bry = getPoint(currentRect.bry+dy);
 
-        this.state.annotations[this.state.dragRect].value = currentRect;
-        this.setState({ annotations:this.state.annotations, dragging: false, rectDrag: false, dragPoint: undefined, dragRect: undefined, dragTimeIndex: undefined });
+        //this.state.annotations[this.state.dragRect].value = currentRect;
+        this.setState(prevState => ({ 
+          annotations: prevState.annotations.map((itm,idx) => { return this.state.dragRect === idx ? { ...itm, value: currentRect } : itm }),
+          dragging: false, 
+          rectDrag: false, 
+          dragPoint: undefined, 
+          dragRect: undefined, 
+          dragTimeIndex: undefined 
+        }));
       } else {
         // Mouse did not move while holding down box (just clicked on it)
 
@@ -557,10 +571,14 @@ export default class VideoAnnotator extends Component {
       } else {
         // If values are different
         // Change value of annotation
-        this.state.annotations[idx].value = value;
-        this.setState({
-          annotations:this.state.annotations
-        })
+        // this.state.annotations[idx].value = value;
+        // this.setState({
+        //   annotations:this.state.annotations
+        // })
+
+        this.setState(prevState => ({
+          annotations: prevState.annotations.map((itm,idex) => { return idex === idx ? { ...itm, value: value } : itm })
+        }))
       }
     } else {
       // Create annotation
@@ -879,7 +897,7 @@ export default class VideoAnnotator extends Component {
 
       let left = item.frame/Math.round(this.state.player.duration*this.state.fps);
 
-      return (<div onClick={this.seekAndSelect.bind(this,item)} style={{width:4,height:12,backgroundColor:color,cursor:'pointer',position:'absolute',top:yOffset*12,left:(left*100)+'%'}}>
+      return (<div onClick={this.seekAndSelect.bind(this,item)} style={{width:2,height:12,backgroundColor:color,cursor:'pointer',position:'absolute',top:yOffset*12,left:(left*100)+'%'}}>
         {/*label+(item.type === 'class' ? '-'+value : '')*/}
       </div>);
       /*return (<Label onClick={this.seekAndSelect.bind(this,item)} style={{backgroundColor:color,color:'white',cursor:'pointer',position:'absolute',top:yOffset*18,left:(left*100)+'%'}} size="mini">
@@ -904,7 +922,7 @@ export default class VideoAnnotator extends Component {
 
       let left = item.frame/Math.round(this.state.player.duration*this.state.fps);
 
-      return (<div onClick={this.seekAndSelect.bind(this,item)} style={{width:4,height:12,backgroundColor:color,cursor:'pointer',position:'absolute',top:yOffset*12,left:(left*100)+'%'}}>
+      return (<div onClick={this.seekAndSelect.bind(this,item)} style={{width:2,height:12,backgroundColor:color,cursor:'pointer',position:'absolute',top:yOffset*12,left:(left*100)+'%'}}>
         {/*label+(item.type === 'class' ? '-'+value : '')*/}
       </div>);
       /*return (<Label onClick={this.seekAndSelect.bind(this,item)} style={{backgroundColor:color,color:'white',cursor:'pointer',position:'absolute',top:yOffset*18,left:(left*100)+'%'}} size="mini">
@@ -919,7 +937,7 @@ export default class VideoAnnotator extends Component {
       const color = '#f00';
 
       let start = item[0]/this.state.player.duration;
-      let end = item[1]/this.state.player.duration;
+      //let end = item[1]/this.state.player.duration;
       let width = (item[1]-item[0])/this.state.player.duration;
 
       let left = (start*100)+'%';
@@ -965,17 +983,31 @@ export default class VideoAnnotator extends Component {
     dlAnchorElem.click();
   }
   onReaderLoad(e) {
-    console.log(e.target.result);
+    //console.log(e.target.result);
     var obj = JSON.parse(e.target.result);
     //console.log(obj);
     for (var i=0;i<obj.labels.length;i++) {
       obj.labels[i].color = this.state.colors[i];
     }
-    for (var i=0;i<obj.annotations.length;i++) {
+    //console.log(obj.width);
+    //console.log(obj.height);
+    //var small_array = [];
+    for (i=0;i<obj.annotations.length;i++) {
       obj.annotations[i].value.brx /= obj.width;
       obj.annotations[i].value.bry /= obj.height;
       obj.annotations[i].value.tlx /= obj.width;
       obj.annotations[i].value.tly /= obj.height;
+      obj.annotations[i].type = 'object';
+      obj.annotations[i].persist = false;
+
+      /*if (i < 1000) {
+        console.log('box');
+        console.log(obj.annotations[i].value.tlx);
+        console.log(obj.annotations[i].value.tly);
+        console.log(obj.annotations[i].value.brx);
+        console.log(obj.annotations[i].value.bry);
+        small_array.push(obj.annotations[i]);
+      }*/
     }
     this.setState({
       video: obj.content,
@@ -1004,7 +1036,7 @@ export default class VideoAnnotator extends Component {
   render() {
     // CONST VARS
 
-    console.log(this.state.labels);
+    //console.log(this.state.annotations);
 
     const canvasStyles = {
       zIndex: this.state.mouseDown ? 4 : 2,
@@ -1086,101 +1118,89 @@ export default class VideoAnnotator extends Component {
         
       <div style={{ lineHeight: 0, display: 'flex', flexDirection: 'row', justifyContent: 'space-around'}}>
         <div style={{ display: 'flex', flexDirection: 'column'}}>
-          <div>
-            <div style={{ lineHeight: 0, display: 'block', position: 'relative' }}>
-              <div className="pan-zoom-element" style={{width: this.state.windowWidth, height: this.state.windowHeight}}>
-                <div className="content-container noselect" style={{ transform: `translate(${this.state.translate.x}px, ${this.state.translate.y}px) scale(${this.state.scale})`, transformOrigin: '0 0', position: 'relative' }}>
-                  <video
-                    ref={(player) => { this.player = player; }}
-                    aspectratio="16:9"
-                    onLoadedMetadata={(e1, e2, e3) => {
-                      const { width, height } = this.videoDimensions(this.player);
-                      let marginLeft = 0;
-                      let marginTop = 0;
-                      if (height !== this.state.windowHeight) {
-                        marginTop = Math.abs(height - this.state.windowHeight) / 2;
-                      }
-                      if (width !== this.state.windowWidth) {
-                        marginLeft = Math.abs(width - this.state.windowWidth) / 2;
-                      }
-                      this.setState({ videoLoad: true, videoHeight: height, marginTop, marginLeft, videoWidth: width });
-                    }}
-                    onLoadStart={this.handleStateChange.bind(this, 'onLoadStart')}
-                    onWaiting={this.handleStateChange.bind(this, 'onWaiting')}
-                    onCanPlay={this.handleStateChange.bind(this, 'onCanPlay')}
-                    onCanPlayThrough={this.handleStateChange.bind(this, 'onCanPlayThrough')}
-                    onPlaying={this.handleStateChange.bind(this, 'onPlaying')}
-                    onEnded={this.handleStateChange.bind(this, 'onEnded')}
-                    onSeeking={this.handleStateChange.bind(this, 'onSeeking')}
-                    onSeeked={this.handleStateChange.bind(this, 'onSeeked')}
-                    onPlay={this.handleStateChange.bind(this, 'onPlay')}
-                    onPause={this.handleStateChange.bind(this, 'onPause')}
-                    onProgress={this.handleStateChange.bind(this, 'onProgress')}
-                    onDurationChange={this.handleStateChange.bind(this, 'onDurationChange')}
-                    onError={this.handleStateChange.bind(this, 'onError')}
-                    onSuspend={this.handleStateChange.bind(this, 'onSuspend')}
-                    onAbort={this.handleStateChange.bind(this, 'onAbort')}
-                    onEmptied={this.handleStateChange.bind(this, 'onEmptied')}
-                    onStalled={this.handleStateChange.bind(this, 'onStalled')}
-                    onLoadedData={this.handleStateChange.bind(this, 'onLoadedData')}
-                    onTimeUpdate={this.handleStateChange.bind(this, 'onTimeUpdate')}
-                    onRateChange={this.handleStateChange.bind(this, 'onRateChange')}
-                    onVolumeChange={this.handleStateChange.bind(this, 'onVolumeChange')}
-                    width={this.state.windowWidth} height={this.state.windowHeight}
-                    preload="auto"
-                    fluid={false}
-                    src={this.state.video} />
-                      { !this.state.videoLoad && <Dimmer active>
-                                                <Loader />
-                                              </Dimmer>}
-                        { this.state.videoLoad &&
-                          <div ref={(canv) => { this.canvas = canv; setFunctions();}} style={canvasStyles}>
-                            { this.canvas && this.canvas.offsetWidth &&
-                                  <svg id="drawing" ref={(id) => {  this.svgId = id }} style={{ width: this.state.videoWidth, height: this.state.videoHeight }}>
-                                    {this.renderBoxes()}
-                                    {this.state.newBox && this.state.newBox.length > 0 && this.canvas && this.renderNewBox()}
-                                    {/*this.state.player.paused && this.state.newBox.length > 1 && this.renderPointsForNewBox()*/}
-                                  </svg>
-                            }
-                          </div>
-                        }
-                      </div>
-                    </div>
-              </div>
-        </div>
-          {this.state.videoLoad &&
-            <div>
-              <div style={{display:'block',textAlign:'center'}}>
-                <Button title="Fast Backward" icon size="mini" onClick={this.seekRelative.bind(this, -600 / this.state.fps)}> <Icon name="fast backward" /></Button>
-                <Button title="Backward" icon size="mini" onClick={this.seekRelative.bind(this, -1 / this.state.fps)}> <Icon name="backward" /></Button>
-                {this.state.player.paused &&
-                            <Button title="Play" icon size="mini" onClick={this.play}> <Icon name="play" /></Button>}
-                {!this.state.player.paused &&
-                  <Button title="Pause" icon size="mini" onClick={this.pause}> <Icon name="pause" /></Button>}
-                <Button title="Forward" icon size="mini" onClick={this.seekRelative.bind(this, 1 / this.state.fps)}> <Icon name="forward" /></Button>
-                <Button title="Fast Forward" icon size="mini" onClick={this.seekRelative.bind(this, 600 / this.state.fps)}> <Icon name="fast forward" /></Button>
-              </div>
-              <div style={{display:'block',textAlign:'center'}}>
-                { this.state.player.paused &&
-                  <p ref={ (ptext) => this.ptext = ptext} id="progressBarText" className="text-center" style={{ fontSize: 'small'}}>
-                    {this.state.player.currentTime} / {this.state.player.duration}
-                  </p>
-                }
-                { !this.state.player.paused &&
-                  <p ref={ (ptext) => this.ptextPlay = ptext} id="progressBarTextPlay" className="text-center" style={{ fontSize: 'small'}}>
-                    {this.state.player.currentTime} / {this.state.player.duration}
-                  </p>
-                }
-              </div>
-              <input title="PlayBack Rate" style={{display:'inline-block',width:'25%',marginRight:12}} className="ui range" onChange={(event, data) => { console.log('changePlaybackRateRate', event.target.value, data); this.changePlaybackRateRate(parseFloat(event.target.value)); }} min={0.1} step={0.1} max={2} type="range" value={this.state.player.playbackRate} />
-              <p style={{display:'inline-block'}}>Playback Speed : <b>{this.state.player.playbackRate}x</b></p>
-              {this.renderBuffers()}
-              <input id="progressBar" title="Progress" style={{ padding: '2px', display:'block',width:'100%' }} className="ui range" onChange={(event, data) => { console.log('onSeekChange', event.target.value, data); this.seek(event.target.value); }} min={0} step={0.0001} max={this.state.player.duration} type="range" value={this.state.player.currentTime} />
-              {this.state.annotations.length > 0 && this.renderAnnotationTimelineObj()}
-              {this.state.annotations.length > 0 && this.renderAnnotationTimelineClass()}
 
+          <div style={{ lineHeight: 0, display: 'block', position: 'relative' }}>
+            <div style={{width: this.state.windowWidth, height: this.state.windowHeight}}>
+              <div style={{ transform: `translate(${this.state.translate.x}px, ${this.state.translate.y}px) scale(${this.state.scale})`, transformOrigin: '0 0', position: 'relative' }}>
+                <video
+                  ref={(player) => { this.player = player; }}
+                  aspectratio="16:9"
+                  onLoadedMetadata={(e1, e2, e3) => {
+                    const { width, height } = this.videoDimensions(this.player);
+                    let marginLeft = 0;
+                    let marginTop = 0;
+                    if (height !== this.state.windowHeight) {
+                      marginTop = Math.abs(height - this.state.windowHeight) / 2;
+                    }
+                    if (width !== this.state.windowWidth) {
+                      marginLeft = Math.abs(width - this.state.windowWidth) / 2;
+                    }
+                    this.setState({ videoLoad: true, videoHeight: height, marginTop, marginLeft, videoWidth: width });
+                  }}
+                  onLoadStart={this.handleStateChange.bind(this, 'onLoadStart')}
+                  onWaiting={this.handleStateChange.bind(this, 'onWaiting')}
+                  onCanPlay={this.handleStateChange.bind(this, 'onCanPlay')}
+                  onCanPlayThrough={this.handleStateChange.bind(this, 'onCanPlayThrough')}
+                  onPlaying={this.handleStateChange.bind(this, 'onPlaying')}
+                  onEnded={this.handleStateChange.bind(this, 'onEnded')}
+                  onSeeking={this.handleStateChange.bind(this, 'onSeeking')}
+                  onSeeked={this.handleStateChange.bind(this, 'onSeeked')}
+                  onPlay={this.handleStateChange.bind(this, 'onPlay')}
+                  onPause={this.handleStateChange.bind(this, 'onPause')}
+                  onProgress={this.handleStateChange.bind(this, 'onProgress')}
+                  onDurationChange={this.handleStateChange.bind(this, 'onDurationChange')}
+                  onError={this.handleStateChange.bind(this, 'onError')}
+                  onSuspend={this.handleStateChange.bind(this, 'onSuspend')}
+                  onAbort={this.handleStateChange.bind(this, 'onAbort')}
+                  onEmptied={this.handleStateChange.bind(this, 'onEmptied')}
+                  onStalled={this.handleStateChange.bind(this, 'onStalled')}
+                  onLoadedData={this.handleStateChange.bind(this, 'onLoadedData')}
+                  onTimeUpdate={this.handleStateChange.bind(this, 'onTimeUpdate')}
+                  onRateChange={this.handleStateChange.bind(this, 'onRateChange')}
+                  onVolumeChange={this.handleStateChange.bind(this, 'onVolumeChange')}
+                  width={this.state.windowWidth} height={this.state.windowHeight}
+                  preload="auto"
+                  fluid={false}
+                  src={this.state.video} />
+                {!this.state.videoLoad && <Dimmer active>
+                  <Loader />
+                </Dimmer>}
+                {this.state.videoLoad && <div ref={(canv) => { this.canvas = canv; setFunctions();}} style={canvasStyles}>
+                  {this.canvas && this.canvas.offsetWidth && <svg id="drawing" ref={(id) => {  this.svgId = id }} style={{ width: this.state.videoWidth, height: this.state.videoHeight }}>
+                    {this.renderBoxes()}
+                    {this.state.newBox && this.state.newBox.length > 0 && this.canvas && this.renderNewBox()}
+                    {/*this.state.player.paused && this.state.newBox.length > 1 && this.renderPointsForNewBox()*/}
+                  </svg>}
+                </div>}
+              </div>
             </div>
-          }
+          </div>
+
+          {this.state.videoLoad && <div>
+            <div style={{display:'block',textAlign:'center'}}>
+              <Button title="Fast Backward" icon size="mini" onClick={this.seekRelative.bind(this, -600 / this.state.fps)}> <Icon name="fast backward" /></Button>
+              <Button title="Backward" icon size="mini" onClick={this.seekRelative.bind(this, -1 / this.state.fps)}> <Icon name="backward" /></Button>
+              {this.state.player.paused &&
+                          <Button title="Play" icon size="mini" onClick={this.play}> <Icon name="play" /></Button>}
+              {!this.state.player.paused &&
+                <Button title="Pause" icon size="mini" onClick={this.pause}> <Icon name="pause" /></Button>}
+              <Button title="Forward" icon size="mini" onClick={this.seekRelative.bind(this, 1 / this.state.fps)}> <Icon name="forward" /></Button>
+              <Button title="Fast Forward" icon size="mini" onClick={this.seekRelative.bind(this, 600 / this.state.fps)}> <Icon name="fast forward" /></Button>
+            </div>
+            <div style={{display:'block',textAlign:'center'}}>
+              {this.state.player.paused &&
+                <p ref={ (ptext) => this.ptext = ptext} id="progressBarText" className="text-center" style={{ fontSize: 'small'}}>
+                  {this.state.player.currentTime} / {this.state.player.duration}
+                </p>}
+              {!this.state.player.paused &&
+                <p ref={ (ptext) => this.ptextPlay = ptext} id="progressBarTextPlay" className="text-center" style={{ fontSize: 'small'}}>
+                  {this.state.player.currentTime} / {this.state.player.duration}
+                </p>}
+            </div>
+            <input title="PlayBack Rate" style={{display:'inline-block',width:'25%',marginRight:12}} className="ui range" onChange={(event, data) => { this.changePlaybackRateRate(parseFloat(event.target.value)); }} min={0.1} step={0.1} max={2} type="range" value={this.state.player.playbackRate} />
+            <p style={{display:'inline-block'}}>Playback Speed : <b>{this.state.player.playbackRate}x</b></p>
+            
+          </div>}
         </div>
         <div style={{ flexGrow: 1.5 }}>
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-around'}}>
@@ -1199,6 +1219,13 @@ export default class VideoAnnotator extends Component {
           </div>
         </div>
       </div>
+
+      {this.state.videoLoad && <div style={{flex:1,flexDirection:'row',margin:12,marginBottom:300}}>
+        {this.renderBuffers()}
+        <input id="progressBar" title="Progress" style={{ padding: '2px', display:'block',width:'100%' }} className="ui range" onChange={(event, data) => { this.seek(event.target.value); }} min={0} step={0.0001} max={this.state.player.duration} type="range" value={this.state.player.currentTime} />
+        {this.state.annotations.length > 0 && this.renderAnnotationTimelineObj()}
+        {this.state.annotations.length > 0 && this.renderAnnotationTimelineClass()}
+      </div>}
     </div>);
   }
 }
