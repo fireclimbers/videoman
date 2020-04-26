@@ -992,6 +992,17 @@ export default class VideoAnnotator extends Component {
     exportObj.labels = this.state.labels;
     exportObj.annotations = this.state.annotations;
 
+    //console.log(exportObj);
+
+    for (var i=0;i<exportObj.annotations.length;i++) {
+      exportObj.annotations[i].value.brx = Math.round(exportObj.annotations[i].value.brx*exportObj.width);
+      exportObj.annotations[i].value.bry = Math.round(exportObj.annotations[i].value.bry*exportObj.height);
+      exportObj.annotations[i].value.tlx = Math.round(exportObj.annotations[i].value.tlx*exportObj.width);
+      exportObj.annotations[i].value.tly = Math.round(exportObj.annotations[i].value.tly*exportObj.height);
+      exportObj.annotations[i].type = 'object';
+      exportObj.annotations[i].persist = false;
+    }
+
     var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj));
     //var dlAnchorElem = document.getElementById('downloadAnchorElem');
     var dlAnchorElem = document.createElement("a");
