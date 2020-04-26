@@ -77,7 +77,7 @@ export default class VideoAnnotator extends Component {
       selectedObjAnnotation: '', // The label of the currently selected annotation
       windowHeight,
       windowWidth,
-      player: this.player,
+      //player: this.player,
       buffers: []
     };
     this.mousedownHandle = this.mousedownHandle.bind(this);
@@ -95,14 +95,6 @@ export default class VideoAnnotator extends Component {
   componentDidMount() {
     window.addEventListener('resize', this.resizeWindow);
     setTimeout(this.setBuffers.bind(this), 500);
-  }
-  componentWillReceiveProps(nextProps) {
-    // TODO put this in when importing new video
-    if (this.props.video !== nextProps.video) {
-      this.setState({canvasSet: false, videoLoad: false, video: nextProps.video });
-      this.player.source = nextProps.video;
-      this.DrawBoard = null;
-    }
   }
   componentWillUnmount() {
     window.removeEventListener('resize', this.resizeWindow);
@@ -134,20 +126,19 @@ export default class VideoAnnotator extends Component {
     };
   }
   setVolume(steps) {
-    let player = {...this.state.player, volume: steps};
-    this.setState({ defaultVolume: steps, player });
+    this.player.volume = steps;
   }
   changePlaybackRateRate(steps) {
-    this.state.player.playbackRate = steps;
+    this.player.playbackRate = steps;
     this.setState({ defaultPlaybackRate: steps });
   }
   setBuffers(e) {
     // Show the red line that shows what parts of the video are buffered
 
-    if (this.state.player && this.state.player.buffered) {
+    if (this.player && this.player.buffered) {
       let buffers = [];
-      for (let i=0;i<this.state.player.buffered.length;i++) {
-        buffers.push([this.state.player.buffered.start(i),this.state.player.buffered.end(i)]);
+      for (let i=0;i<this.player.buffered.length;i++) {
+        buffers.push([this.player.buffered.start(i),this.player.buffered.end(i)]);
       }
       this.setState({
         buffers
@@ -156,7 +147,7 @@ export default class VideoAnnotator extends Component {
     setTimeout(this.setBuffers.bind(this), 500);
   }
   play() {
-    this.state.player.play();
+    this.player.play();
     if (!this.state.rfa) {
       window.requestAnimationFrame((ts) => { 
         let animationStartTime = this.state.animationStartTime;
@@ -175,50 +166,47 @@ export default class VideoAnnotator extends Component {
     // Pauses and makes sure it pauses on a frame-aligned timestamp
 
     window.cancelAnimationFrame(this.increasePlayerTime);
-    const player = this.state.player;
+    //const player = this.state.player;
     const frame = this.getCurrentFrame();
     //console.log(frame);
     const seconds = frame/this.state.fps;
     //console.log(seconds);
-    player.currentTime = seconds;
+    this.player.currentTime = seconds;
     this.setState({ rfa: false });
-    this.state.player.pause();
-    this.setState({ player });
+    this.player.pause();
     return false;
   }
   handleStateChange(eventName, event) {
     // Copy player state to this component's state
 
-    // TODO should player = event.target be in or out of the conditional?????
-    //this.state.player = event.target;
-    if (!this.state.rfa || this.state.player.paused || eventName !== 'onTimeUpdate') {
-      this.setState({
+    if (!this.state.rfa || this.player.paused || eventName !== 'onTimeUpdate') {
+      /*this.setState({
         player: event.target
-      });
-    } else if (eventName === 'onTimeUpdate' && !this.state.player.paused) {
+      });*/
+    } else if (eventName === 'onTimeUpdate' && !this.player.paused) {
       let pBar = document.getElementById("progressBar");
       if (this.ptextPlay !== null && this.state.rfa) {
-        let nowTime = `${this.state.player.currentTime} / ${this.state.player.duration}`;
+        let nowTime = `${this.player.currentTime} / ${this.player.duration}`;
         nowTime = nowTime + ' ';
         this.ptextPlay.innerHTML =  nowTime;
-        pBar.value = this.state.player.currentTime;
+        pBar.value = this.player.currentTime;
       }
     }
   }
   increasePlayerTime(ts) {
     // Draws rectangles while video is playing
 
-    if (this.state.player === undefined || this.state.player.currentTime === undefined) {
+    if (this.player === undefined || this.player.currentTime === undefined) {
       window.cancelAnimationFrame(this.increasePlayerTime);
       this.setState({ rfa: false });
       return;
     }
     let timeTraveled = (ts - (this.state.animationStartTime ? this.state.animationStartTime : window.performance.now())) / 1000;
-    let threshold = ( 0.9 / (this.state.fps * this.state.player.playbackRate));
+    let threshold = ( 0.9 / (this.state.fps * this.player.playbackRate));
     if (!this.DrawBoard) this.DrawBoard = SVG(this.svgId).size(this.state.videoWidth, this.state.videoHeight);
     // debugger;
     if ((Math.floor(threshold * 100) > Math.floor(timeTraveled * 100))) {
-      if (!this.state.player.paused && this.state.player.currentTime !== this.state.player.duration) {
+      if (!this.player.paused && this.player.currentTime !== this.player.duration) {
         window.requestAnimationFrame((ts) => { this.increasePlayerTime(ts); });
         return;
       }
@@ -233,7 +221,7 @@ export default class VideoAnnotator extends Component {
       id = index + '--node';
 
       // If video playing and frame is at same time as current time
-      if (!this.state.player.paused && (this.getCurrentFrame() === rect.frame)) {
+      if (!this.player.paused && (this.getCurrentFrame() === rect.frame)) {
         const lineColor = this.getColorFromLabel(rect.label);
         let currentRect = rect.value;
 
@@ -274,7 +262,7 @@ export default class VideoAnnotator extends Component {
       window.requestAnimationFrame((ts) => { this.increasePlayerTime(ts); });
     }
 
-    if (!this.state.player.paused && this.state.player.currentTime !== this.state.player.duration && this.state.annotations.length > 0) {
+    if (!this.player.paused && this.player.currentTime !== this.player.duration && this.state.annotations.length > 0) {
       let animationStartTime = this.state.animationStartTime;
       animationStartTime = ts;
       this.setState({
@@ -290,23 +278,23 @@ export default class VideoAnnotator extends Component {
   seekRelative(seconds) {
     // For going back/forward x number of frames relative to current time
 
-    const player = this.state.player;
-    const currentTime = player.currentTime;
+    //const player = this.state.player;
+    const currentTime = this.player.currentTime;
     this.seek((currentTime + parseFloat(seconds)).toFixed(6));
     return false;
   }
   seek(seconds) {
     // Go to frame in video
 
-    const player = this.state.player;
-    player.currentTime = seconds;
-    if (!this.state.player.paused) {
+    //const player = this.state.player;
+    this.player.currentTime = seconds;
+    if (!this.player.paused) {
       this.pause();
     } else {
       const frame = Math.round(seconds*this.state.fps);
       const newseconds = frame/this.state.fps;
-      player.currentTime = newseconds;
-      this.setState({ player });
+      this.player.currentTime = newseconds;
+      //this.setState({ player });
     }
     //this.setState({ player });
   }
@@ -328,10 +316,10 @@ export default class VideoAnnotator extends Component {
     return {x, y};
   }
   getCurrentFrame() {
-    return Math.round(this.state.player.currentTime*this.state.fps);
+    return Math.round(this.player.currentTime*this.state.fps);
   }
   mousedownHandle(event) {
-    if (!this.state.player.paused) return;
+    if (!this.player.paused) return;
 
     if (this.state.selectedObjLabel.label) {
       // Event for creating new box (creating first corner and confirming other corner)
@@ -401,7 +389,7 @@ export default class VideoAnnotator extends Component {
       //this.setState({ annotations:this.state.annotations });
 
       this.setState(prevState => ({
-        annotations: prevState.annotations.map((itm,idx) => idx === this.state.dragRect ? { ...itm, value: currentRect } : itm).sort((a,b) => a.frame - b.frame)
+        annotations: prevState.annotations.map((itm,idx) => idx === this.state.dragRect ? { ...itm, value: currentRect } : itm)//.sort((a,b) => a.frame - b.frame)
       }))
     } else if (this.state.rectDrag) {
       // If mouse is holding middle of box
@@ -549,9 +537,9 @@ export default class VideoAnnotator extends Component {
       }
     }
   }
-  selectLabel(labelObj, value, e) {
-    if (this.state.selectedObjLabel.label !== labelObj.label || this.state.selectedObjLabel.value !== value) {
-      let selLabel = {label:labelObj.label,value:value,color:labelObj.color,type:labelObj.type,persist:labelObj.persist};
+  selectLabel(labelObj, e) {
+    if (this.state.selectedObjLabel.label !== labelObj.label) {
+      let selLabel = {label:labelObj.label,color:labelObj.color,type:labelObj.type,persist:labelObj.persist};
       this.setState({ selectedObjLabel: selLabel });
     } else {
       this.setState({ selectedObjLabel: {} });
@@ -603,11 +591,12 @@ export default class VideoAnnotator extends Component {
     labelObj.persist = false;
     labelObj.values = ['BOX'];
 
-    var objList = this.state.labels.filter((itm) => itm.type === 'object');
-    if (objList.length < this.state.colors.length) {
-      labelObj.color = this.state.colors[objList.length];
+    if (this.state.colors.length > 0) {
+      const color = this.state.colors[0];
+      labelObj.color = color;
       this.setState(prevState => ({
         labels: [...prevState.labels, labelObj],
+        colors: prevState.colors.filter(itm => itm !== color),
         newObjLabelText: ''
       }))
     }
@@ -621,11 +610,13 @@ export default class VideoAnnotator extends Component {
   editObjLabel(e) {
     const index = this.state.editingObjLabelIndex;
     const value = this.state.newObjLabelText;
+    const oldLabel = this.state.labels[this.state.editingObjLabelIndex];
     //this.state.labels[editingObjLabelIndex].label = this.state.newObjLabelText;
     this.setState(prevState => ({
       labels: prevState.labels.map((itm,idx) => { return idx === index ? { ...itm, label: value } : itm }),
       editingObjLabelIndex: -1,
-      newObjLabelText: ''
+      newObjLabelText: '',
+      annotations: prevState.annotations.map((itm) => { return itm.label === oldLabel.label ? { ...itm, label: value } : itm })
     }))
   }
   getColorFromLabel(label) {
@@ -704,39 +695,43 @@ export default class VideoAnnotator extends Component {
 
           if (item.type !== 'object') return null;
 
+          let bgC = 'white';
+          if (this.state.selectedObjLabel.label === item.label) {
+            bgC = 'grey';
+          }
+
+          const idx = findIndex(this.state.annotations, (itm) => { return (itm.frame === this.getCurrentFrame()) && (itm.label === item.label); })
+          let bgLabel = item.color;
+          let func = this.selectLabel.bind(this, item);
+          if (idx > -1) {
+            bgLabel = 'grey';
+            func = null;
+          }
+
           return <div>
-            <div className="disable_text_highlighting text-center" onClick={this.setEditingObjLabel.bind(this,index,item.label)} key={item.label+index} id={item.label+index} style={{ cursor: 'pointer', padding: 6, display:'inline-block' }}>
+            <div className="disable_text_highlighting text-center" onClick={func} key={item.label+index} id={item.label+index} style={{ cursor: 'pointer', backgroundColor: bgC, padding: 6, display:'inline-block' }}>
               <div style={{ cursor: 'pointer', color:'white' }}>
-                <Label id={item.label+index+'label'} size="small" style={{ boxShadow: '1px 1px 1px', color: 'white', backgroundColor: item.color }}>{'E'}</Label>
+                <Label id={item.label+index+'label'} size="small" style={{ boxShadow: '1px 1px 1px', color: 'white', backgroundColor: bgLabel }}><Icon style={{margin:0}} name="plus" /></Label>
               </div>
             </div>
             <div className="disable_text_highlighting" key={item.label+'header'} id={item.label+'header'} style={{ padding: 12, display:'inline-block',backgroundColor: this.state.editingObjLabelIndex === index ? '#f48fb1' : 'white' }}>
               {item.label}
             </div>
-            {item.values.map((item2,index2) => {
-              let bgC = 'white';
-              if (this.state.selectedObjLabel.label === item.label && this.state.selectedObjLabel.value === item2) {
-                bgC = 'grey';
-              }
-
-              const idx = findIndex(this.state.annotations, (itm) => { return (itm.frame === this.getCurrentFrame()) && (itm.label === item.label); })
-              let bgLabel = item.color;
-              let func = this.selectLabel.bind(this, item,item2);
-              if (idx > -1) {
-                bgLabel = 'grey';
-                func = null;
-              }
-
-              return [<div className="disable_text_highlighting text-center" onClick={func} key={item.label+index} id={item.label+index} style={{ cursor: 'pointer', backgroundColor: bgC, padding: 6, display:'inline-block' }}>
-                <div style={{ cursor: 'pointer', color:'white' }}>
-                  <Label id={item.label+index+'label'} size="small" style={{ boxShadow: '1px 1px 1px', color: 'white', backgroundColor: bgLabel }}>{'+'}</Label>
-                </div>
-              </div>,<div className="disable_text_highlighting text-center" onClick={this.changeMultiple.bind(this,item)} key={item.label+index+'2'} id={item.label+index+'2'} style={{ cursor: 'pointer', backgroundColor: 'white', padding: 6, display:'inline-block' }}>
-                <div style={{ cursor: 'pointer', color:'white' }}>
-                  <Label id={item.label+index+'label2'} size="small" style={{ boxShadow: '1px 1px 1px', color: 'white', backgroundColor: item.color }}>{'Ch'}</Label>
-                </div>
-              </div>]
-            })}
+            <div className="disable_text_highlighting text-center" onClick={this.setEditingObjLabel.bind(this,index,item.label)} key={item.label+index+'0'} id={item.label+index+'0'} style={{ cursor: 'pointer', padding: 6, display:'inline-block' }}>
+              <div style={{ cursor: 'pointer', color:'white' }}>
+                <Label id={item.label+index+'label'} size="small" style={{ boxShadow: '1px 1px 1px', color: 'white', backgroundColor: item.color }}><Icon style={{margin:0}} name="pencil alternate" /></Label>
+              </div>
+            </div>
+            <div className="disable_text_highlighting text-center" onClick={this.changeMultiple.bind(this,item)} key={item.label+index+'2'} id={item.label+index+'2'} style={{ cursor: 'pointer', backgroundColor: 'white', padding: 6, display:'inline-block' }}>
+              <div style={{ cursor: 'pointer', color:'white' }}>
+                <Label id={item.label+index+'label2'} size="small" style={{ boxShadow: '1px 1px 1px', color: 'white', backgroundColor: item.color }}><Icon style={{margin:0}} name="exchange" /></Label>
+              </div>
+            </div>
+            <div className="disable_text_highlighting text-center" onClick={this.removeLabel.bind(this,item.label)} key={item.label+index+'3'} id={item.label+index+'3'} style={{ cursor: 'pointer', backgroundColor: 'white', padding: 6, display:'inline-block' }}>
+              <div style={{ cursor: 'pointer', color:'white' }}>
+                <Label id={item.label+index+'label2'} size="small" style={{ boxShadow: '1px 1px 1px', color: 'white', backgroundColor: item.color }}><Icon style={{margin:0}} name="trash alternate" /></Label>
+              </div>
+            </div>
           </div>
         })}
       </div>
@@ -753,9 +748,6 @@ export default class VideoAnnotator extends Component {
         </div>
         {labels[i].values.map((item,index) => {
           let bgC = 'white';
-          if (this.state.selectedObjLabel.label === labels[i].label && this.state.selectedObjLabel.value === item) {
-            bgC = 'grey';
-          }
 
           const idx = findIndex(this.state.annotations, (itm) => { return (itm.frame === this.getCurrentFrame()) && (itm.label === labels[i].label) && (itm.value === item); })
           if (idx > -1) {
@@ -791,7 +783,7 @@ export default class VideoAnnotator extends Component {
     </div>);
   }
   renderBoxes(data, event) {
-    if (!this.state.player.paused) {
+    if (!this.player.paused) {
       if (!this.state.rfa) {
         this.setState({
           rfa: true
@@ -813,7 +805,7 @@ export default class VideoAnnotator extends Component {
       const lineColor = this.getColorFromLabel(rect.label);
       const sw = 2 / this.state.scale;
 
-      let id = index + '--' + this.state.player.currentTime;
+      let id = index + '--' + this.player.currentTime;
 
       let tlx = rect.value.tlx;
       let tly = rect.value.tly;
@@ -855,7 +847,7 @@ export default class VideoAnnotator extends Component {
       ,
       <g>
         {points.map((item,index2) => {
-          const idp = index + '--' + index2 + '--' + this.state.player.currentTime;
+          const idp = index + '--' + index2 + '--' + this.player.currentTime;
           return <circle style={style} id={idp} cx={item[0]}
                     cy={item[1]}
                   r={radius} stroke="white" strokeWidth={swp} fill={lineColor} />
@@ -884,8 +876,22 @@ export default class VideoAnnotator extends Component {
   renderAnnotationTimelineObj() {
     // Render all annotations below video
 
+
+    var displayAnnotations = [];
+
+    var objLabels = this.state.labels.filter((itm) => { return itm.type === 'object'; })
+    for (let i=0;i<objLabels.length;i++) {
+      var annotations = this.state.annotations.filter((itm) => { return itm.label === objLabels[i].label; }).sort((a,b) => a.frame - b.frame);
+      if (annotations.length > 0) {
+        displayAnnotations.push(annotations[0]);
+      }
+      if (annotations.length > 1) {
+        displayAnnotations.push(annotations[annotations.length-1]);
+      }
+    }
+
     return <div style={{position:'relative',display:'block'}}>
-    {this.state.annotations.map((item, index) => {
+    {displayAnnotations.map((item, index) => {
       const color = this.getColorFromLabel(item.label);
 
       let label = item.label;
@@ -895,10 +901,10 @@ export default class VideoAnnotator extends Component {
         return i.label === label;
       })
 
-      let left = item.frame/Math.round(this.state.player.duration*this.state.fps);
+      let left = item.frame/Math.round(this.player.duration*this.state.fps);
 
-      return (<div onClick={this.seekAndSelect.bind(this,item)} style={{width:2,height:12,backgroundColor:color,cursor:'pointer',position:'absolute',top:yOffset*12,left:(left*100)+'%'}}>
-        {/*label+(item.type === 'class' ? '-'+value : '')*/}
+      return (<div onClick={this.seekAndSelect.bind(this,item)} style={{fontSize:12,color:'white',padding:3,borderRadius:9,backgroundColor:color,cursor:'pointer',position:'absolute',top:yOffset*24,left:(left*100)+'%'}}>
+        {label}
       </div>);
       /*return (<Label onClick={this.seekAndSelect.bind(this,item)} style={{backgroundColor:color,color:'white',cursor:'pointer',position:'absolute',top:yOffset*18,left:(left*100)+'%'}} size="mini">
         {label+(item.type === 'class' ? '-'+value : '')}
@@ -910,7 +916,7 @@ export default class VideoAnnotator extends Component {
     // Render all annotations below video
 
     return <div style={{position:'relative',display:'block'}}>
-    {this.state.annotations.map((item, index) => {
+    {this.state.annotations.filter((itm) => itm.type === 'class').map((item, index) => {
       const color = this.getColorFromLabel(item.label);
 
       let label = item.label;
@@ -920,10 +926,10 @@ export default class VideoAnnotator extends Component {
         return i.label === label;
       })
 
-      let left = item.frame/Math.round(this.state.player.duration*this.state.fps);
+      let left = item.frame/Math.round(this.player.duration*this.state.fps);
 
-      return (<div onClick={this.seekAndSelect.bind(this,item)} style={{width:2,height:12,backgroundColor:color,cursor:'pointer',position:'absolute',top:yOffset*12,left:(left*100)+'%'}}>
-        {/*label+(item.type === 'class' ? '-'+value : '')*/}
+      return (<div onClick={this.seekAndSelect.bind(this,item)} style={{fontSize:12,color:'white',padding:3,borderRadius:9,backgroundColor:color,cursor:'pointer',position:'absolute',top:yOffset*24,left:(left*100)+'%'}}>
+        {label+': '+value.toString()[0]}
       </div>);
       /*return (<Label onClick={this.seekAndSelect.bind(this,item)} style={{backgroundColor:color,color:'white',cursor:'pointer',position:'absolute',top:yOffset*18,left:(left*100)+'%'}} size="mini">
         {label+(item.type === 'class' ? '-'+value : '')}
@@ -936,9 +942,9 @@ export default class VideoAnnotator extends Component {
     {this.state.buffers.map((item, index) => {
       const color = '#f00';
 
-      let start = item[0]/this.state.player.duration;
+      let start = item[0]/this.player.duration;
       //let end = item[1]/this.state.player.duration;
-      let width = (item[1]-item[0])/this.state.player.duration;
+      let width = (item[1]-item[0])/this.player.duration;
 
       let left = (start*100)+'%';
       width = (width*100)+'%';
@@ -965,6 +971,14 @@ export default class VideoAnnotator extends Component {
       })
     }
   }
+  removeLabel(label, e) {
+    const color = this.getColorFromLabel(label);
+    this.setState(prevState => ({
+      annotations: prevState.annotations.filter((itm) => { return itm.label !== label; }),
+      labels: prevState.labels.filter((itm) => { return itm.label !== label; }),
+      colors: [...prevState.colors, color]
+    }))
+  }
   exportJson(e) {
     var exportObj = {};
     exportObj.content = this.state.video;
@@ -986,8 +1000,10 @@ export default class VideoAnnotator extends Component {
     //console.log(e.target.result);
     var obj = JSON.parse(e.target.result);
     //console.log(obj);
+    var usedColors = [];
     for (var i=0;i<obj.labels.length;i++) {
       obj.labels[i].color = this.state.colors[i];
+      usedColors.push(this.state.colors[i]);
     }
     //console.log(obj.width);
     //console.log(obj.height);
@@ -1009,7 +1025,7 @@ export default class VideoAnnotator extends Component {
         small_array.push(obj.annotations[i]);
       }*/
     }
-    this.setState({
+    this.setState(prevState => ({
       video: obj.content,
       origVideoHeight: obj.height,
       origVideoWidth: obj.width,
@@ -1017,8 +1033,9 @@ export default class VideoAnnotator extends Component {
       labels: obj.labels,
       annotations: obj.annotations,
       canvasSet: false,
-      videoLoad: false
-    })
+      videoLoad: false,
+      colors: prevState.colors.filter(itm => usedColors.indexOf(itm) === -1 )
+    }))
     this.player.source = obj.content;
     this.DrawBoard = null;
     //alert_data(obj.name, obj.family);
@@ -1046,8 +1063,8 @@ export default class VideoAnnotator extends Component {
       left: 0,
       marginTop: this.state.marginTop,
       marginLeft: this.state.marginLeft,
-      width: this.state.player ? this.state.videoWidth : 0,
-      height: this.state.player ? this.state.videoHeight : 0,
+      width: this.player ? this.state.videoWidth : 0,
+      height: this.player ? this.state.videoHeight : 0,
       cursor: this.state.selectedObjLabel.label ? 'crosshair' : 'auto',
     };
     const cBar = document.getElementsByClassName('video-react-control-bar');
@@ -1068,40 +1085,40 @@ export default class VideoAnnotator extends Component {
     };
 
     let combo = undefined;
-    if (this.state.player && this.state.player.paused) {
+    if (this.player && this.player.paused) {
       Mousetrap.bind('space', this.play.bind(this));
-    } else if (this.state.player) {
+    } else if (this.player) {
       Mousetrap.bind('space', this.pause.bind(this));
     }
     if ('forward' in shortcuts) {
       combo = convertKeyToString(shortcuts.forward);
-      if (this.state.player && this.state.player.paused) {
+      if (this.player && this.player.paused) {
         Mousetrap.bind(combo, this.seekRelative.bind(this, 1 / this.state.fps));
-      } else if (this.state.player) {
+      } else if (this.player) {
         Mousetrap.unbind(combo);
       }
     }
     if ('backward' in shortcuts) {
       combo = convertKeyToString(shortcuts.backward);
-      if (this.state.player && this.state.player.paused) {
+      if (this.player && this.player.paused) {
         Mousetrap.bind(combo, this.seekRelative.bind(this, - 1 / this.state.fps));
-      } else if (this.state.player) {
+      } else if (this.player) {
         Mousetrap.unbind(combo);
       }
     }
     if ('fast_forward' in shortcuts) {
       combo = convertKeyToString(shortcuts.fast_forward);
-      if (this.state.player && this.state.player.paused) {
+      if (this.player && this.player.paused) {
         Mousetrap.bind(combo, this.seekRelative.bind(this, 600 / this.state.fps));
-      } else if (this.state.player) {
+      } else if (this.player) {
         Mousetrap.unbind(combo);
       }
     }
     if ('fast_backward' in shortcuts) {
       combo = convertKeyToString(shortcuts.fast_backward);
-      if (this.state.player && this.state.player.paused) {
+      if (this.player && this.player.paused) {
         Mousetrap.bind(combo, this.seekRelative.bind(this, -600 / this.state.fps));
-      } else if (this.state.player) {
+      } else if (this.player) {
         Mousetrap.unbind(combo);
       }
     }
@@ -1180,25 +1197,25 @@ export default class VideoAnnotator extends Component {
             <div style={{display:'block',textAlign:'center'}}>
               <Button title="Fast Backward" icon size="mini" onClick={this.seekRelative.bind(this, -600 / this.state.fps)}> <Icon name="fast backward" /></Button>
               <Button title="Backward" icon size="mini" onClick={this.seekRelative.bind(this, -1 / this.state.fps)}> <Icon name="backward" /></Button>
-              {this.state.player.paused &&
+              {this.player.paused &&
                           <Button title="Play" icon size="mini" onClick={this.play}> <Icon name="play" /></Button>}
-              {!this.state.player.paused &&
+              {!this.player.paused &&
                 <Button title="Pause" icon size="mini" onClick={this.pause}> <Icon name="pause" /></Button>}
               <Button title="Forward" icon size="mini" onClick={this.seekRelative.bind(this, 1 / this.state.fps)}> <Icon name="forward" /></Button>
               <Button title="Fast Forward" icon size="mini" onClick={this.seekRelative.bind(this, 600 / this.state.fps)}> <Icon name="fast forward" /></Button>
             </div>
             <div style={{display:'block',textAlign:'center'}}>
-              {this.state.player.paused &&
+              {this.player.paused &&
                 <p ref={ (ptext) => this.ptext = ptext} id="progressBarText" className="text-center" style={{ fontSize: 'small'}}>
-                  {this.state.player.currentTime} / {this.state.player.duration}
+                  {this.player.currentTime} / {this.player.duration}
                 </p>}
-              {!this.state.player.paused &&
+              {!this.player.paused &&
                 <p ref={ (ptext) => this.ptextPlay = ptext} id="progressBarTextPlay" className="text-center" style={{ fontSize: 'small'}}>
-                  {this.state.player.currentTime} / {this.state.player.duration}
+                  {this.player.currentTime} / {this.player.duration}
                 </p>}
             </div>
-            <input title="PlayBack Rate" style={{display:'inline-block',width:'25%',marginRight:12}} className="ui range" onChange={(event, data) => { this.changePlaybackRateRate(parseFloat(event.target.value)); }} min={0.1} step={0.1} max={2} type="range" value={this.state.player.playbackRate} />
-            <p style={{display:'inline-block'}}>Playback Speed : <b>{this.state.player.playbackRate}x</b></p>
+            <input title="PlayBack Rate" style={{display:'inline-block',width:'25%',marginRight:12}} className="ui range" onChange={(event, data) => { this.changePlaybackRateRate(parseFloat(event.target.value)); }} min={0.1} step={0.1} max={2} type="range" value={this.player.playbackRate} />
+            <p style={{display:'inline-block'}}>Playback Speed : <b>{this.player.playbackRate}x</b></p>
             
           </div>}
         </div>
@@ -1222,7 +1239,7 @@ export default class VideoAnnotator extends Component {
 
       {this.state.videoLoad && <div style={{flex:1,flexDirection:'row',margin:12,marginBottom:300}}>
         {this.renderBuffers()}
-        <input id="progressBar" title="Progress" style={{ padding: '2px', display:'block',width:'100%' }} className="ui range" onChange={(event, data) => { this.seek(event.target.value); }} min={0} step={0.0001} max={this.state.player.duration} type="range" value={this.state.player.currentTime} />
+        <input id="progressBar" title="Progress" style={{ padding: '2px', display:'block',width:'100%' }} className="ui range" onChange={(event, data) => { this.seek(event.target.value); }} min={0} step={0.0001} max={this.player.duration} type="range" value={this.player.currentTime} />
         {this.state.annotations.length > 0 && this.renderAnnotationTimelineObj()}
         {this.state.annotations.length > 0 && this.renderAnnotationTimelineClass()}
       </div>}
