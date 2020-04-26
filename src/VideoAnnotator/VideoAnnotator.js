@@ -972,10 +972,10 @@ export default class VideoAnnotator extends Component {
       obj.labels[i].color = this.state.colors[i];
     }
     for (var i=0;i<obj.annotations.length;i++) {
-      obj.annotations[i].value.brx *= obj.width;
-      obj.annotations[i].value.bry *= obj.height;
-      obj.annotations[i].value.tlx *= obj.width;
-      obj.annotations[i].value.tly *= obj.height;
+      obj.annotations[i].value.brx /= obj.width;
+      obj.annotations[i].value.bry /= obj.height;
+      obj.annotations[i].value.tlx /= obj.width;
+      obj.annotations[i].value.tly /= obj.height;
     }
     this.setState({
       video: obj.content,
