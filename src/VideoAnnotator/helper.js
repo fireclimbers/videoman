@@ -30,6 +30,36 @@ export const findIndex = (list, func) => {
   return list.indexOf(list.filter(func)[0]);
 }
 
+export const videoDimensions = (video) => {
+    // Ratio of the video's intrisic dimensions
+    var videoRatio = video.videoWidth / video.videoHeight;
+
+    var { windowWidth, windowHeight } = getWindowDimeshions();
+    // The ratio of the element's width to its height
+    var elementRatio = windowWidth / windowHeight;
+    // If the video element is short and wide
+    if (elementRatio > videoRatio) windowWidth = windowHeight * videoRatio;
+    // It must be tall and thin, or exactly equal to the original ratio
+    else windowHeight = windowWidth / videoRatio;
+    return {
+      width: windowWidth,
+      height: windowHeight
+    };
+  }
+
+export const frameEmpty = (obj) => {
+  return !obj || Object.keys(obj).length === 0;
+}
+
+export const loop = (obj, func) => {
+  const keys = Object.keys(obj);
+  for (var prop in keys) {
+    if (!obj.hasOwnProperty(prop)) continue;
+    //Do your logic with the property here
+    func(obj[prop], prop);
+  }
+}
+
 
 export const shortcuts = {
         forward: {
