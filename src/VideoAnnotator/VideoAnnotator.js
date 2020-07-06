@@ -255,10 +255,9 @@ export default class VideoAnnotator extends Component {
         //console.log(item);
         //console.log(label);
         // If video playing and frame is at same time as current time
+        if (item.type !== 'object') return;
 
         if (!nextBox || !nextBox[label]) {
-          console.log(label);
-          console.log(this.state.annotations);
           this.setState(
             produce(draft => {
               if (draft.annotations[frame+1]) {
@@ -576,11 +575,10 @@ export default class VideoAnnotator extends Component {
   }
   toggleLabel(labelObj,value,e) {
     const frame = this.getCurrentFrame();
-    //const idx = findIndex(this.state.annotations[frame], (itm) => { return (itm.label === labelObj.label); })
-    const idx = this.state.annotations[frame][labelObj.label];
+    // TODO if frame isnt found in annotations
     
     // If label on frame exists
-    if (idx) {
+    if (this.state.annotations[frame] && this.state.annotations[frame][labelObj.label]) {
       // If values are the same
       if (this.state.annotations[frame][labelObj.label].value === value) {
         // Delete annotation
@@ -608,7 +606,11 @@ export default class VideoAnnotator extends Component {
           annotationObj.type = labelObj.type;
           //annotationObj.label = labelObj.label;
           annotationObj.value = value;
-          draft.annotations[frame][labelObj.label] = annotationObj;
+          if (draft.annotations[frame]) {
+            draft.annotations[frame][labelObj.label] = annotationObj;
+          } else {
+            draft.annotations[frame] = {[labelObj.label]: annotationObj};
+          }
         })
       )
     }
@@ -649,7 +651,6 @@ export default class VideoAnnotator extends Component {
 
         for (var key in draft.annotations) {
           if (!draft.annotations.hasOwnProperty(key)) continue;
-          //draft.annotations[key] = draft.annotations[key].map((itm) => { return itm.label === oldLabel.label ? { ...itm, label: value } : itm })
 
           draft.annotations[key][value] = { ...draft.annotations[key][oldLabel.label]};
           delete draft.annotations[key][oldLabel.label];
@@ -737,11 +738,6 @@ export default class VideoAnnotator extends Component {
             bgC = 'grey';
           }
 
-          /*if (!this.state.annotations[frame]) {
-            var idx = -1;
-          } else {
-            var idx = findIndex(this.state.annotations[frame], (itm) => { return (itm.label === item.label); })
-          }*/
           let bgLabel = item.color;
           let func = this.selectLabel.bind(this, item);
           if (this.state.annotations[frame] && this.state.annotations[frame][item.label]) {
@@ -790,11 +786,6 @@ export default class VideoAnnotator extends Component {
         {labels[i].values.map((item,index) => {
           let bgC = 'white';
 
-          /*if (!this.state.annotations[frame]) {
-            var idx = -1;
-          } else {
-            var idx = findIndex(this.state.annotations[frame], (itm) => { return (itm.label === labels[i].label) && (itm.value === item); })
-          }*/
           if (this.state.annotations[frame] && this.state.annotations[frame][labels[i].label] && this.state.annotations[frame][labels[i].label].value === item) {
             bgC = 'grey';
           }
