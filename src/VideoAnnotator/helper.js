@@ -52,11 +52,11 @@ export const frameEmpty = (obj) => {
 }
 
 export const loop = (obj, func) => {
+  //console.log(obj);
   const keys = Object.keys(obj);
-  for (var prop in keys) {
-    if (!obj.hasOwnProperty(prop)) continue;
-    //Do your logic with the property here
-    func(obj[prop], prop);
+  //console.log(keys);
+  for (let i=0;i<keys.length;i++) {
+    func(obj[keys[i]], keys[i]);
   }
 }
 
