@@ -239,11 +239,6 @@ export default class VideoAnnotator extends Component {
     }
   }
   seekFrameForward() {
-    // TODO
-    // For every box on screen,
-      // If box doesn't already exist on next screen, redraw box for that frame
-      // Autohighlight one?
-
     const frame = this.getCurrentFrame();
     const box = this.state.annotations[frame];
 
@@ -575,7 +570,6 @@ export default class VideoAnnotator extends Component {
   }
   toggleLabel(labelObj,value,e) {
     const frame = this.getCurrentFrame();
-    // TODO if frame isnt found in annotations
     
     // If label on frame exists
     if (this.state.annotations[frame] && this.state.annotations[frame][labelObj.label]) {
@@ -673,8 +667,46 @@ export default class VideoAnnotator extends Component {
     // get frame
     const frame = this.getCurrentFrame();
 
-    // if a box annotation was selected
+    const origLabel = this.state.dragLabel;
+    const newLabel = labelObj.label;
+
     if (this.state.selectedObjAnnotation.value && this.state.dragLabel) {
+      this.setState(
+        produce(draft => {
+          for (var key in draft.annotations) {
+            if (!draft.annotations.hasOwnProperty(key)) continue;
+            if (key < frame) continue;
+
+            var temp = null;
+            var temp2 = null;
+
+            if (draft.annotations[key][newLabel]) {
+              temp = {...draft.annotations[key][newLabel]}
+              delete draft.annotations[key][newLabel]
+            }
+
+            if (draft.annotations[key][origLabel]) {
+              temp2 = {...draft.annotations[key][origLabel]}
+              delete draft.annotations[key][origLabel]
+            }
+
+            if (temp) {
+              draft.annotations[key][origLabel] = temp;
+            }
+
+            if (temp2) {
+              draft.annotations[key][newLabel] = temp2;
+            }
+
+          }
+        })
+      )
+    }
+
+
+
+    // if a box annotation was selected
+    /*if (this.state.selectedObjAnnotation.value && this.state.dragLabel) {
       var origLabel = this.state.dragLabel;
       var newLabel = labelObj.label;
 
@@ -717,7 +749,7 @@ export default class VideoAnnotator extends Component {
     // Then, concat with all new annotations
     this.setState(prevState => ({
       annotations: prevState.annotations.filter((itm) => { return (changedFrames.indexOf(itm.frame) > -1) ? (itm.label !== origLabel && itm.label !== newLabel) : true; }).concat(changedAnnotations)
-    }))
+    }))*/
 
   }
   renderObjLabels() {
@@ -916,16 +948,31 @@ export default class VideoAnnotator extends Component {
   renderAnnotationTimelineObj() {
     // Render all annotations below video
 
+
+
+    // All frames that have annotations, sorted
+    var frames = Object.keys(this.state.annotations).sort((a,b) => parseInt(a) - parseInt(b));
+
+    // All annotations that will be displayed
     var displayAnnotations = [];
 
-    var objLabels = this.state.labels.filter((itm) => { return itm.type === 'object'; })
+    // All object labels
+    var objLabels = this.state.labels//.filter((itm) => { return itm.type === 'object'; })
     for (let i=0;i<objLabels.length;i++) {
-      var annotations = this.state.annotations.filter((itm) => { return itm.label === objLabels[i].label; }).sort((a,b) => a.frame - b.frame);
-      if (annotations.length > 0) {
-        displayAnnotations.push(annotations[0]);
-      }
-      if (annotations.length > 1) {
-        displayAnnotations.push(annotations[annotations.length-1]);
+      var objAnnotations = frames.filter((item,index) => {
+        return Object.keys(this.state.annotations[item]).indexOf(objLabels[i].label) > -1;
+      })
+      if (objLabels[i].type === 'object') {
+        if (objAnnotations.length > 0) {
+          displayAnnotations.push({...this.state.annotations[objAnnotations[0]][objLabels[i].label], label: objLabels[i].label, frame: objAnnotations[0]});
+        }
+        if (objAnnotations.length > 1) {
+          displayAnnotations.push({...this.state.annotations[objAnnotations[objAnnotations.length-1]][objLabels[i].label], label: objLabels[i].label, frame: objAnnotations[objAnnotations.length-1]});
+        }
+      } else {
+        for (let j=0;j<objAnnotations.length;j++) {
+          displayAnnotations.push({...this.state.annotations[objAnnotations[j]][objLabels[i].label], label: objLabels[i].label, frame: objAnnotations[j]})
+        }
       }
     }
 
@@ -942,8 +989,14 @@ export default class VideoAnnotator extends Component {
 
       let left = item.frame/Math.round(this.player.duration*this.state.fps);
 
+      if (item.type === 'object') {
+        var text = label;
+      } else {
+        var text = value.toString();
+      }
+
       return (<div onClick={this.seekAndSelect.bind(this,item)} style={{fontSize:12,color:'white',padding:3,borderRadius:9,backgroundColor:color,cursor:'pointer',position:'absolute',top:yOffset*24,left:(left*100)+'%'}}>
-        {label}
+        {text}
       </div>);
     })}
     </div>
@@ -1032,16 +1085,6 @@ export default class VideoAnnotator extends Component {
     exportObj.labels = this.state.labels;
     exportObj.annotations = this.state.annotations;
 
-    //console.log(exportObj);
-
-    for (var i=0;i<exportObj.annotations.length;i++) {
-      exportObj.annotations[i].value.brx = Math.round(exportObj.annotations[i].value.brx*exportObj.width);
-      exportObj.annotations[i].value.bry = Math.round(exportObj.annotations[i].value.bry*exportObj.height);
-      exportObj.annotations[i].value.tlx = Math.round(exportObj.annotations[i].value.tlx*exportObj.width);
-      exportObj.annotations[i].value.tly = Math.round(exportObj.annotations[i].value.tly*exportObj.height);
-      exportObj.annotations[i].type = 'object';
-    }
-
     var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj));
     var dlAnchorElem = document.createElement("a");
     dlAnchorElem.setAttribute("href",     dataStr     );
@@ -1057,7 +1100,7 @@ export default class VideoAnnotator extends Component {
       usedColors.push(this.state.colors[i]);
     }
 
-    var formattedAnnos = {};
+    /*var formattedAnnos = {};
 
     for (i=0;i<obj.annotations.length;i++) {
       obj.annotations[i].value.brx /= obj.width;
@@ -1073,7 +1116,7 @@ export default class VideoAnnotator extends Component {
         formattedAnnos[obj.annotations[i].frame][obj.annotations[i].label] = obj.annotations[i];
         delete formattedAnnos[obj.annotations[i].frame][obj.annotations[i].label]['label'];
       }
-    }
+    }*/
 
     var content = obj.content.split('/');
     content = 'https://docbot-s3.s3.us-east-2.amazonaws.com/dev/videos/'+content[content.length-1].replace('.mp4','_unique.mp4');
@@ -1084,7 +1127,7 @@ export default class VideoAnnotator extends Component {
       origVideoWidth: obj.width,
       fps: obj.fps,
       labels: obj.labels,
-      annotations: formattedAnnos,
+      annotations: obj.annotations,
       canvasSet: false,
       videoLoad: false,
       colors: prevState.colors.filter(itm => usedColors.indexOf(itm) === -1 )
@@ -1275,8 +1318,8 @@ export default class VideoAnnotator extends Component {
       {this.state.videoLoad && <div style={{flex:1,flexDirection:'row',margin:12,marginBottom:300}}>
         {this.renderBuffers()}
         <input id="progressBar" title="Progress" style={{ padding: '2px', display:'block',width:'100%' }} className="ui range" onChange={(event, data) => { this.seek(event.target.value); }} min={0} step={0.0001} max={this.player.duration} type="range" value={this.player.currentTime} />
-        {/*this.renderAnnotationTimelineObj()}
-        {this.renderAnnotationTimelineClass()*/}
+        {this.renderAnnotationTimelineObj()}
+        {/*this.renderAnnotationTimelineClass()*/}
       </div>}
     </div>);
   }
