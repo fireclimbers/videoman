@@ -87,6 +87,125 @@ export default class VideoAnnotator extends Component {
     window.addEventListener('resize', this.resizeWindow);
     setTimeout(this.setBuffers.bind(this), 500);
   }
+  getImg(e) {
+    let video = document.getElementById('theviceo');
+    let canvas = document.getElementById('canvasOutput');    
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    video.setAttribute('crossOrigin', 'Anonymous');
+    canvas.setAttribute('crossOrigin', 'Anonymous');
+    let ctx = canvas.getContext('2d'); 
+    ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+    let imgData = ctx.getImageData(0,0,video.videoWidth,video.videoHeight);
+    /*canvas.toBlob() = (blob) => {
+      const img = new Image();
+      img.src = window.URL.createObjectUrl(blob);
+    };*/
+
+    //let mat = window.cv.imread(canvas);
+    let mat = window.cv.matFromImageData(imgData);
+    window.cv.imshow('canvasOutputCV', mat);
+    mat.delete();
+  }
+  what() {
+    let video = document.getElementById('theviceo');
+    video.setAttribute("crossOrigin", "");
+    let cap = new window.cv.VideoCapture(video);
+
+    // parameters for ShiTomasi corner detection
+    let [maxCorners, qualityLevel, minDistance, blockSize] = [30, 0.3, 7, 7];
+
+    // parameters for lucas kanade optical flow
+    let winSize = new window.cv.Size(15, 15);
+    let maxLevel = 2;
+    let criteria = new window.cv.TermCriteria(window.cv.TERM_CRITERIA_EPS | window.cv.TERM_CRITERIA_COUNT, 10, 0.03);
+
+    // create some random colors
+    let color = [];
+    for (let i = 0; i < maxCorners; i++) {
+        color.push(new window.cv.Scalar(parseInt(Math.random()*255), parseInt(Math.random()*255),
+                                 parseInt(Math.random()*255), 255));
+    }
+
+    // take first frame and find corners in it
+    let oldFrame = new window.cv.Mat(video.height, video.width, window.cv.CV_8UC4);
+    cap.read(oldFrame);
+    let oldGray = new window.cv.Mat();
+    window.cv.cvtColor(oldFrame, oldGray, window.cv.COLOR_RGB2GRAY);
+    let p0 = new window.cv.Mat();
+    let none = new window.cv.Mat();
+    window.cv.goodFeaturesToTrack(oldGray, p0, maxCorners, qualityLevel, minDistance, none, blockSize);
+
+    // Create a mask image for drawing purposes
+    let zeroEle = new window.cv.Scalar(0, 0, 0, 255);
+    let mask = new window.cv.Mat(oldFrame.rows, oldFrame.cols, oldFrame.type(), zeroEle);
+
+    let frame = new window.cv.Mat(video.height, video.width, window.cv.CV_8UC4);
+    let frameGray = new window.cv.Mat();
+    let p1 = new window.cv.Mat();
+    let st = new window.cv.Mat();
+    let err = new window.cv.Mat();
+
+    const FPS = 30;
+    const blah = 120;
+    let a = 0;
+    function processVideo() {
+        try {
+            if (a > blah) {
+                // clean and stop.
+                frame.delete(); oldGray.delete(); p0.delete(); p1.delete(); err.delete(); mask.delete();
+                return;
+            }
+            a++;
+            let begin = Date.now();
+
+            // start processing.
+            cap.read(frame);
+            window.cv.cvtColor(frame, frameGray, window.cv.COLOR_RGBA2GRAY);
+
+            // calculate optical flow
+            window.cv.calcOpticalFlowPyrLK(oldGray, frameGray, p0, p1, st, err, winSize, maxLevel, criteria);
+
+            // select good points
+            let goodNew = [];
+            let goodOld = [];
+            for (let i = 0; i < st.rows; i++) {
+                if (st.data[i] === 1) {
+                    goodNew.push(new window.cv.Point(p1.data32F[i*2], p1.data32F[i*2+1]));
+                    goodOld.push(new window.cv.Point(p0.data32F[i*2], p0.data32F[i*2+1]));
+                }
+            }
+
+            // draw the tracks
+            for (let i = 0; i < goodNew.length; i++) {
+                window.cv.line(mask, goodNew[i], goodOld[i], color[i], 2);
+                window.cv.circle(frame, goodNew[i], 5, color[i], -1);
+            }
+            window.cv.add(frame, mask, frame);
+
+            window.cv.imshow('canvasOutput', frame);
+
+            // now update the previous frame and previous points
+            frameGray.copyTo(oldGray);
+            p0.delete(); p0 = null;
+            p0 = new window.cv.Mat(goodNew.length, 1, window.cv.CV_32FC2);
+            for (let i = 0; i < goodNew.length; i++) {
+                p0.data32F[i*2] = goodNew[i].x;
+                p0.data32F[i*2+1] = goodNew[i].y;
+            }
+
+            // schedule the next one.
+            let delay = 1000/FPS - (Date.now() - begin);
+            setTimeout(processVideo, delay);
+        } catch (err) {
+            console.log(err);
+        }
+    };
+
+    // schedule the first one.
+    setTimeout(processVideo, 0);
+
+  }
   componentWillUnmount() {
     window.removeEventListener('resize', this.resizeWindow);
   }
@@ -1232,6 +1351,7 @@ export default class VideoAnnotator extends Component {
             <div style={{width: this.state.windowWidth, height: this.state.windowHeight}}>
               <div style={{ position: 'relative' }}>
                 <video
+                  id="theviceo"
                   ref={(player) => { this.player = player; }}
                   aspectratio="16:9"
                   onLoadedMetadata={(e1, e2, e3) => {
@@ -1321,6 +1441,10 @@ export default class VideoAnnotator extends Component {
         {this.renderAnnotationTimelineObj()}
         {/*this.renderAnnotationTimelineClass()*/}
       </div>}
+
+      <button onClick={this.what.bind(this)}>Get</button>
+      <canvas id="canvasOutput" ></canvas>
+      <canvas id="canvasOutputCV" ></canvas>
     </div>);
   }
 }
