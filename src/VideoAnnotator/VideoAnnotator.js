@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
-import { Button, Label, Icon, Dimmer, Loader, Input } from 'semantic-ui-react';
 import { getPoint, convertKeyToString, getWindowDimeshions, findIndex, shortcuts, videoDimensions, frameEmpty, loop } from './helper';
 import produce from "immer";
+import './hella-cutie-styles2.css';
 
 const Mousetrap = require('mousetrap');
 const SVG = require('svg.js');
@@ -66,7 +66,7 @@ export default class VideoAnnotator extends Component {
       marginLeft: 0,
       opacity: 0.1, // opacity of inside of boxes
       defaultPlaybackRate: 1,
-      video: 'https://docbot-s3.s3.us-east-2.amazonaws.com/test/outpy3.mp4',
+      video: 'https://anno-test-ation.s3.us-east-2.amazonaws.com/outpy3.mp4',
       selectedObjAnnotation: {}, // The label of the currently selected annotation
       windowHeight,
       windowWidth,
@@ -107,38 +107,45 @@ export default class VideoAnnotator extends Component {
     window.cv.imshow('canvasOutputCV', mat);
     mat.delete();
   }
-  what() {
+  what2() {
+    const f = this.getCurrentFrame();
+
+    // TODO if there are no object annotations within this frame, seek frame forward and nothing else
+    if (!this.state.annotations[f]) {
+      this.seekFrameForward(1 / this.state.fps);
+      return;
+    }
+
+    let objectLabels = Object.keys(this.state.annotations[f]).filter((itm,index) => this.state.annotations[f][itm].type === 'object');
+    if (objectLabels.length === 0) {
+      this.seekFrameForward(1 / this.state.fps);
+      return;
+    }
+
     let video = document.getElementById('theviceo');
     video.setAttribute("crossOrigin", "");
     let cap = new window.cv.VideoCapture(video);
 
-    // parameters for ShiTomasi corner detection
-    let [maxCorners, qualityLevel, minDistance, blockSize] = [30, 0.3, 7, 7];
-
     // parameters for lucas kanade optical flow
-    let winSize = new window.cv.Size(15, 15);
-    let maxLevel = 2;
+    let winSize = new window.cv.Size(21, 21); //15,15
+    let maxLevel = 3; //2
     let criteria = new window.cv.TermCriteria(window.cv.TERM_CRITERIA_EPS | window.cv.TERM_CRITERIA_COUNT, 10, 0.03);
-
-    // create some random colors
-    let color = [];
-    for (let i = 0; i < maxCorners; i++) {
-        color.push(new window.cv.Scalar(parseInt(Math.random()*255), parseInt(Math.random()*255),
-                                 parseInt(Math.random()*255), 255));
-    }
 
     // take first frame and find corners in it
     let oldFrame = new window.cv.Mat(video.height, video.width, window.cv.CV_8UC4);
     cap.read(oldFrame);
     let oldGray = new window.cv.Mat();
     window.cv.cvtColor(oldFrame, oldGray, window.cv.COLOR_RGB2GRAY);
-    let p0 = new window.cv.Mat();
-    let none = new window.cv.Mat();
-    window.cv.goodFeaturesToTrack(oldGray, p0, maxCorners, qualityLevel, minDistance, none, blockSize);
 
-    // Create a mask image for drawing purposes
-    let zeroEle = new window.cv.Scalar(0, 0, 0, 255);
-    let mask = new window.cv.Mat(oldFrame.rows, oldFrame.cols, oldFrame.type(), zeroEle);
+    // TODO loop thru each point
+    let p0 = new window.cv.Mat(objectLabels.length*2, 1, window.cv.CV_32FC2);
+    for (let i=0;i<objectLabels.length;i++) {
+      let box = this.state.annotations[f][objectLabels[i]].value;
+      p0.data32F[i*4] = box.tlx*video.width;
+      p0.data32F[(i*4)+1] = box.tly*video.height;
+      p0.data32F[(i*4)+2] = box.brx*video.width;
+      p0.data32F[(i*4)+3] = box.bry*video.height;
+    }
 
     let frame = new window.cv.Mat(video.height, video.width, window.cv.CV_8UC4);
     let frameGray = new window.cv.Mat();
@@ -146,65 +153,91 @@ export default class VideoAnnotator extends Component {
     let st = new window.cv.Mat();
     let err = new window.cv.Mat();
 
-    const FPS = 30;
-    const blah = 120;
-    let a = 0;
+    // Go forward one frame
+    this.seekRelative(1/this.state.fps);
+
+    var that = this;
     function processVideo() {
-        try {
-            if (a > blah) {
-                // clean and stop.
-                frame.delete(); oldGray.delete(); p0.delete(); p1.delete(); err.delete(); mask.delete();
-                return;
-            }
-            a++;
-            let begin = Date.now();
+      try {
+          // start processing.
+          cap.read(frame);
+          window.cv.cvtColor(frame, frameGray, window.cv.COLOR_RGBA2GRAY);
 
-            // start processing.
-            cap.read(frame);
-            window.cv.cvtColor(frame, frameGray, window.cv.COLOR_RGBA2GRAY);
+          // calculate optical flow
+          window.cv.calcOpticalFlowPyrLK(oldGray, frameGray, p0, p1, st, err, winSize, maxLevel, criteria);
 
-            // calculate optical flow
-            window.cv.calcOpticalFlowPyrLK(oldGray, frameGray, p0, p1, st, err, winSize, maxLevel, criteria);
+          var tlxa = [];
+          var tlya = [];
+          var brxa = [];
+          var brya = [];
 
-            // select good points
-            let goodNew = [];
-            let goodOld = [];
-            for (let i = 0; i < st.rows; i++) {
-                if (st.data[i] === 1) {
-                    goodNew.push(new window.cv.Point(p1.data32F[i*2], p1.data32F[i*2+1]));
-                    goodOld.push(new window.cv.Point(p0.data32F[i*2], p0.data32F[i*2+1]));
+          for (let i=0;i<objectLabels.length;i++) {
+            tlxa.push(p1.data32F[i*4]/video.width);
+            tlya.push(p1.data32F[(i*4)+1]/video.height);
+            brxa.push(p1.data32F[(i*4)+2]/video.width);
+            brya.push(p1.data32F[(i*4)+3]/video.height);
+          }
+          
+          that.setState(
+            produce(draft => {
+              for (let i=0;i<objectLabels.length;i++) {
+                if (!draft.annotations[f+1]) {
+                  draft.annotations[f+1] = {[objectLabels[i]]: {value: {}, type:'object'}}
                 }
-            }
+                if (!draft.annotations[f+1][objectLabels[i]]) {
+                  draft.annotations[f+1][objectLabels[i]] = {value: {}, type:'object'}
+                }
+                let tlx = tlxa[i];
+                let tly = tlya[i];
+                let brx = brxa[i];
+                let bry = brya[i];
 
-            // draw the tracks
-            for (let i = 0; i < goodNew.length; i++) {
-                window.cv.line(mask, goodNew[i], goodOld[i], color[i], 2);
-                window.cv.circle(frame, goodNew[i], 5, color[i], -1);
-            }
-            window.cv.add(frame, mask, frame);
+                if (tlx > brx) {
+                  let temp = tlx;
+                  tlx = brx;
+                  brx = temp;
+                }
 
-            window.cv.imshow('canvasOutput', frame);
+                if (tly > bry) {
+                  let temp = tly;
+                  tly = bry;
+                  bry = temp;
+                }
 
-            // now update the previous frame and previous points
-            frameGray.copyTo(oldGray);
-            p0.delete(); p0 = null;
-            p0 = new window.cv.Mat(goodNew.length, 1, window.cv.CV_32FC2);
-            for (let i = 0; i < goodNew.length; i++) {
-                p0.data32F[i*2] = goodNew[i].x;
-                p0.data32F[i*2+1] = goodNew[i].y;
-            }
+                if (tlx < 0) {
+                  tlx = 0;
+                }
+                if (tly < 0) {
+                  tly = 0;
+                }
 
-            // schedule the next one.
-            let delay = 1000/FPS - (Date.now() - begin);
-            setTimeout(processVideo, delay);
-        } catch (err) {
-            console.log(err);
-        }
-    };
+                if (brx > video.width) {
+                  brx = video.width;
+                }
+                if (bry > video.height) {
+                  bry = video.height;
+                }
 
-    // schedule the first one.
-    setTimeout(processVideo, 0);
+                draft.annotations[f+1][objectLabels[i]].value.tlx = tlx;
+                draft.annotations[f+1][objectLabels[i]].value.tly = tly;
+                draft.annotations[f+1][objectLabels[i]].value.brx = brx;
+                draft.annotations[f+1][objectLabels[i]].value.bry = bry;
 
+              }
+              
+            })
+          )
+
+          frame.delete(); oldGray.delete(); p0.delete(); p1.delete(); err.delete();// mask.delete();
+          frameGray.delete();
+          oldFrame.delete();
+          st.delete();
+      } catch (err) {
+          console.log(err);
+      }
+    }
+
+    setTimeout(processVideo, 200);
   }
   componentWillUnmount() {
     window.removeEventListener('resize', this.resizeWindow);
@@ -822,74 +855,29 @@ export default class VideoAnnotator extends Component {
       )
     }
 
-
-
-    // if a box annotation was selected
-    /*if (this.state.selectedObjAnnotation.value && this.state.dragLabel) {
-      var origLabel = this.state.dragLabel;
-      var newLabel = labelObj.label;
-
-      // Get every box annotation that is current frame or later, and sort them by frame and secondarily by origLabel vs not origLabel
-      var annotationsToCheck = this.state.annotations.filter((itm) => { return itm.frame >= frame && itm.type === 'object'; }).sort((a,b) => { return (a.frame - b.frame) || (b.label === origLabel ? 1 : (a.label === origLabel ? -1 : 0)); });
-
-      var changedAnnotations = [];
-      var changedFrames = [];
-
-      var currentFrame = -1;
-
-      for (let i=0;i<annotationsToCheck.length;i++) {
-        // If new frame is being looked at
-        if (currentFrame !== annotationsToCheck[i].frame) {
-          // This first new frame is guaranteed to be the orig frame or it doesn't exist
-          if (annotationsToCheck[i].label !== origLabel) {
-            // No more origLabels to change, stop
-            break;
-          }
-
-          currentFrame = annotationsToCheck[i].frame;
-        }
-
-        // Change origLabel to new label or new label to origLabel
-        if (annotationsToCheck[i].label === origLabel) {
-          annotationsToCheck[i].label = newLabel;
-          changedAnnotations.push(annotationsToCheck[i]);
-          changedFrames.push(annotationsToCheck[i].frame);
-        } else if (annotationsToCheck[i].label === newLabel) {
-          annotationsToCheck[i].label = origLabel;
-          changedAnnotations.push(annotationsToCheck[i]);
-          changedFrames.push(annotationsToCheck[i].frame);
-        }
-      }
-    }
-
-    // Take annotationsToCheck and shove that into annotations
-
-    // Only keep annotations that are either not part of the changed frames, or if they are, their label isnt the old or new one
-    // Then, concat with all new annotations
-    this.setState(prevState => ({
-      annotations: prevState.annotations.filter((itm) => { return (changedFrames.indexOf(itm.frame) > -1) ? (itm.label !== origLabel && itm.label !== newLabel) : true; }).concat(changedAnnotations)
-    }))*/
-
   }
   renderObjLabels() {
     const frame = this.getCurrentFrame();
     return ( <div>
-      <div style={{margin:6}}>
-        <Input size="mini" value={this.state.newObjLabelText} onChange={(event) => this.setState({newObjLabelText: event.target.value })} placeholder="Enter label..." />
-        <Button title="Add" icon size="mini" style={{marginLeft:6}} onClick={this.state.editingObjLabelIndex > -1 ? this.editObjLabel.bind(this) : this.addLabel.bind(this)}> <Icon name="plus" /></Button>
+      <div>
+        <div className="field has-addons">
+          <div className="control">
+            <input className="input is-small" value={this.state.newObjLabelText} onChange={(event) => this.setState({newObjLabelText: event.target.value })} placeholder="Enter label..." />
+          </div>
+          <div className="control">
+            <button className="button is-small" onClick={this.state.editingObjLabelIndex > -1 ? this.editObjLabel.bind(this) : this.addLabel.bind(this)}>+</button>
+          </div>
+        </div>
       </div>
-      <div style={{ display: 'flex', backgroundColor: 'white', overflow: 'auto', flexDirection: 'column', height: '200px'}}>
+      <div style={{ display: 'flex', overflow: 'auto', flexDirection: 'column', height: '200px'}}>
         {this.state.labels.map((item,index) => {
 
           if (item.type !== 'object') return null;
 
-          let bgC = 'white';
-          //console.log(this.state.selectedObjLabel.label, item.label);
-          if (this.state.selectedObjLabel.label === item.label) {
-            bgC = 'grey';
-          }
-
           let bgLabel = item.color;
+          if (this.state.selectedObjLabel.label === item.label) {
+            bgLabel = '#f5f5f5';
+          }
           let func = this.selectLabel.bind(this, item);
           if (this.state.annotations[frame] && this.state.annotations[frame][item.label]) {
             bgLabel = 'grey';
@@ -897,29 +885,29 @@ export default class VideoAnnotator extends Component {
           }
 
           return <div>
-            <div className="disable_text_highlighting text-center" onClick={func} key={item.label+index} id={item.label+index} style={{ cursor: 'pointer', backgroundColor: bgC, padding: 6, display:'inline-block' }}>
-              <div style={{ cursor: 'pointer', color:'white' }}>
-                <Label id={item.label+index+'label'} size="small" style={{ boxShadow: '1px 1px 1px', color: 'white', backgroundColor: bgLabel }}><Icon style={{margin:0}} name="plus" /></Label>
-              </div>
-            </div>
-            <div className="disable_text_highlighting" key={item.label+'header'} id={item.label+'header'} style={{ padding: 12, display:'inline-block',backgroundColor: this.state.editingObjLabelIndex === index ? '#f48fb1' : 'white' }}>
-              {item.label}
-            </div>
-            <div className="disable_text_highlighting text-center" onClick={this.setEditingObjLabel.bind(this,index,item.label)} key={item.label+index+'0'} id={item.label+index+'0'} style={{ cursor: 'pointer', padding: 6, display:'inline-block' }}>
-              <div style={{ cursor: 'pointer', color:'white' }}>
-                <Label id={item.label+index+'label'} size="small" style={{ boxShadow: '1px 1px 1px', color: 'white', backgroundColor: item.color }}><Icon style={{margin:0}} name="pencil alternate" /></Label>
-              </div>
-            </div>
-            <div className="disable_text_highlighting text-center" onClick={this.changeMultiple.bind(this,item)} key={item.label+index+'2'} id={item.label+index+'2'} style={{ cursor: 'pointer', backgroundColor: 'white', padding: 6, display:'inline-block' }}>
-              <div style={{ cursor: 'pointer', color:'white' }}>
-                <Label id={item.label+index+'label2'} size="small" style={{ boxShadow: '1px 1px 1px', color: 'white', backgroundColor: item.color }}><Icon style={{margin:0}} name="exchange" /></Label>
-              </div>
-            </div>
-            <div className="disable_text_highlighting text-center" onClick={this.removeLabel.bind(this,item.label)} key={item.label+index+'3'} id={item.label+index+'3'} style={{ cursor: 'pointer', backgroundColor: 'white', padding: 6, display:'inline-block' }}>
-              <div style={{ cursor: 'pointer', color:'white' }}>
-                <Label id={item.label+index+'label2'} size="small" style={{ boxShadow: '1px 1px 1px', color: 'white', backgroundColor: item.color }}><Icon style={{margin:0}} name="trash alternate" /></Label>
-              </div>
-            </div>
+            <div className="buttons has-addons">
+              <button className="button is-small is-primary" onClick={func} key={item.label+index} id={item.label+index} style={{backgroundColor: bgLabel}}>
+                <span className="icon is-small">
+                  <i className="fas fa-plus"></i>
+                </span>
+              </button>
+              <button className="button is-static is-small" style={{ backgroundColor: this.state.editingObjLabelIndex === index ? '#f48fb1' : 'white' }}>{item.label}</button>
+              <button className="button is-small is-primary" onClick={this.setEditingObjLabel.bind(this,index,item.label)} key={item.label+index+'0'} id={item.label+index+'0'} style={{ backgroundColor: item.color }}>
+                <span className="icon is-small">
+                  <i className="fas fa-pencil-alt"></i>
+                </span>
+              </button>
+              <button className="button is-small is-primary" onClick={this.changeMultiple.bind(this,item)} key={item.label+index+'2'} id={item.label+index+'2'} style={{backgroundColor: item.color}}>
+                <span className="icon is-small">
+                  <i className="fas fa-exchange-alt"></i>
+                </span>
+              </button>
+              <button className="button is-small is-primary" onClick={this.removeLabel.bind(this,item.label)} key={item.label+index+'3'} id={item.label+index+'3'} style={{ backgroundColor: item.color }}>
+                <span className="icon is-small">
+                  <i className="fas fa-trash-alt"></i>
+                </span>
+              </button>
+            </div>  
           </div>
         })}
       </div>
@@ -930,12 +918,12 @@ export default class VideoAnnotator extends Component {
     const labels = this.state.labels.filter((itm) => { return itm.type === 'class' });
     const frame = this.getCurrentFrame();
     for (let i=0;i<labels.length;i++) {
-      arrs.push(<div>
-        <div className="disable_text_highlighting" key={labels[i].label+'header'} id={labels[i].label+'header'} style={{ padding: 6, display:'inline-block' }}>
-          {labels[i].label}
-        </div>
+      arrs.push(<div><div className="buttons has-addons">
+          <button className="button is-static is-small is-primary">
+            {labels[i].label}
+          </button>
         {labels[i].values.map((item,index) => {
-          let bgC = 'white';
+          let bgC = labels[i].color;
 
           if (this.state.annotations[frame] && this.state.annotations[frame][labels[i].label] && this.state.annotations[frame][labels[i].label].value === item) {
             bgC = 'grey';
@@ -951,16 +939,12 @@ export default class VideoAnnotator extends Component {
             s = 'End';
           }
 
-          return <div className="disable_text_highlighting" onClick={func.bind(this, labels[i],item)} key={labels[i].label+index} id={labels[i].label+index} style={{ cursor: 'pointer', backgroundColor: bgC, padding: 6, display:'inline-block' }}>
-            <div style={{ cursor: 'pointer', color:'white' }}>
-              <Label id={labels[i].label+index+'label'} size="small" style={{ boxShadow: '1px 1px 1px', color: 'white', backgroundColor: labels[i].color }}>{s}</Label>
-            </div>
-          </div>
+          return <button className="button is-small is-primary" key={labels[i].label+index} onClick={func.bind(this, labels[i],item)} style={{ backgroundColor: bgC }}>{s}</button>
         })}
-      </div>)
+      </div></div>)
     }
     return ( <div>
-      <div style={{ backgroundColor: 'white', overflow: 'auto', height: '200px'}}>
+      <div style={{ overflow: 'auto', height: '200px'}}>
         {arrs}
       </div>
     </div>);
@@ -1108,37 +1092,14 @@ export default class VideoAnnotator extends Component {
 
       let left = item.frame/Math.round(this.player.duration*this.state.fps);
 
-      if (item.type === 'object') {
-        var text = label;
-      } else {
-        var text = value.toString();
+      var text = label;
+      if (item.type !== 'object') {
+        text = value.toString();
       }
 
-      return (<div onClick={this.seekAndSelect.bind(this,item)} style={{fontSize:12,color:'white',padding:3,borderRadius:9,backgroundColor:color,cursor:'pointer',position:'absolute',top:yOffset*24,left:(left*100)+'%'}}>
+      return <span onClick={this.seekAndSelect.bind(this,item)} style={{backgroundColor:color,cursor:'pointer',position:'absolute',top:yOffset*24,left:(left*100)+'%'}} className="tag is-primary">
         {text}
-      </div>);
-    })}
-    </div>
-  }
-  renderAnnotationTimelineClass() {
-    // Render all annotations below video
-
-    return <div style={{position:'relative',display:'block'}}>
-    {this.state.annotations.filter((itm) => itm.type === 'class').map((item, index) => {
-      const color = this.getColorFromLabel(item.label);
-
-      let label = item.label;
-      let value = item.value;
-
-      const yOffset = findIndex(this.state.labels,(i) => {
-        return i.label === label;
-      })
-
-      let left = item.frame/Math.round(this.player.duration*this.state.fps);
-
-      return (<div onClick={this.seekAndSelect.bind(this,item)} style={{fontSize:12,color:'white',padding:3,borderRadius:9,backgroundColor:color,cursor:'pointer',position:'absolute',top:yOffset*24,left:(left*100)+'%'}}>
-        {label+': '+value.toString()[0]}
-      </div>);
+      </span>
     })}
     </div>
   }
@@ -1219,26 +1180,8 @@ export default class VideoAnnotator extends Component {
       usedColors.push(this.state.colors[i]);
     }
 
-    /*var formattedAnnos = {};
-
-    for (i=0;i<obj.annotations.length;i++) {
-      obj.annotations[i].value.brx /= obj.width;
-      obj.annotations[i].value.bry /= obj.height;
-      obj.annotations[i].value.tlx /= obj.width;
-      obj.annotations[i].value.tly /= obj.height;
-      obj.annotations[i].type = 'object';
-
-      if (!formattedAnnos.hasOwnProperty(obj.annotations[i].frame)) {
-        formattedAnnos[obj.annotations[i].frame] = {[obj.annotations[i].label]: obj.annotations[i]};
-        delete formattedAnnos[obj.annotations[i].frame][obj.annotations[i].label]['label'];
-      } else {
-        formattedAnnos[obj.annotations[i].frame][obj.annotations[i].label] = obj.annotations[i];
-        delete formattedAnnos[obj.annotations[i].frame][obj.annotations[i].label]['label'];
-      }
-    }*/
-
     var content = obj.content.split('/');
-    content = 'https://docbot-s3.s3.us-east-2.amazonaws.com/dev/videos/'+content[content.length-1].replace('.mp4','_unique.mp4');
+    content = 'https://anno-test-ation.s3.us-east-2.amazonaws.com/dev/videos/'+content[content.length-1].replace('.mp4','_unique.mp4');
 
     this.setState(prevState => ({
       video: content,
@@ -1304,7 +1247,7 @@ export default class VideoAnnotator extends Component {
     if ('forward' in shortcuts) {
       combo = convertKeyToString(shortcuts.forward);
       if (this.player && this.player.paused) {
-        Mousetrap.bind(combo, this.seekFrameForward.bind(this, 1 / this.state.fps));
+        Mousetrap.bind(combo, this.seekRelative.bind(this, 1 / this.state.fps));
       } else if (this.player) {
         Mousetrap.unbind(combo);
       }
@@ -1333,6 +1276,10 @@ export default class VideoAnnotator extends Component {
         Mousetrap.unbind(combo);
       }
     }
+    if ('predict' in shortcuts) {
+      combo = convertKeyToString(shortcuts.predict);
+      Mousetrap.bind(combo, this.what2.bind(this));
+    }
     if ('delete' in shortcuts) {
       combo = convertKeyToString(shortcuts.delete);
       Mousetrap.bind(combo, this.removeBox.bind(this));
@@ -1340,18 +1287,39 @@ export default class VideoAnnotator extends Component {
 
     return (<div>
       <div style={{margin:12}}>
-        <input className="file-input" type="file" name="list" onChange={this.importJson.bind(this)} />
-        <Button title="Export" size="mini" onClick={this.exportJson.bind(this)}>Export</Button>
+        <div className="field is-grouped">
+          <p className="control">
+            <div className="file has-name is-small">
+              <label className="file-label">
+                <input className="file-input" type="file" name="list" onChange={this.importJson.bind(this)}/>
+                <span className="file-cta">
+                  <span className="file-icon">
+                    <i className="fas fa-upload"></i>
+                  </span>
+                  <span className="file-label">
+                    Choose a file…
+                  </span>
+                </span>
+                {/*<span className="file-name">
+                  Screen Shot 2017-07-29 at 15.54.25.png
+                </span>*/}
+              </label>
+            </div>
+          </p>
+          <p className="control">
+            <button className="button is-small" onClick={this.exportJson.bind(this)}>Export</button>
+          </p>
+        </div>
       </div>
         
-      <div style={{ lineHeight: 0, display: 'flex', flexDirection: 'row', justifyContent: 'space-around'}}>
+      <div style={{ /*lineHeight: 0,*/ display: 'flex', flexDirection: 'row', justifyContent: 'space-around'}}>
         <div style={{ display: 'flex', flexDirection: 'column'}}>
-
-          <div style={{ lineHeight: 0, display: 'block', position: 'relative' }}>
+          <div style={{ /*lineHeight: 0,*/ display: 'block', position: 'relative' }}>
             <div style={{width: this.state.windowWidth, height: this.state.windowHeight}}>
               <div style={{ position: 'relative' }}>
                 <video
                   id="theviceo"
+                  crossOrigin="Anonymous"
                   ref={(player) => { this.player = player; }}
                   aspectratio="16:9"
                   onLoadedMetadata={(e1, e2, e3) => {
@@ -1370,9 +1338,9 @@ export default class VideoAnnotator extends Component {
                   preload="auto"
                   fluid={false}
                   src={this.state.video} />
-                {!this.state.videoLoad && <Dimmer active>
-                  <Loader />
-                </Dimmer>}
+                {!this.state.videoLoad && <div>
+                  Loading
+                </div>}
                 {this.state.videoLoad && <div ref={(canv) => { this.canvas = canv; setFunctions();}} style={canvasStyles}>
                   {this.canvas && this.canvas.offsetWidth && <svg id="drawing" ref={(id) => {  this.svgId = id }} style={{ width: this.state.videoWidth, height: this.state.videoHeight }}>
                     {this.renderBoxes()}
@@ -1385,49 +1353,70 @@ export default class VideoAnnotator extends Component {
           </div>
 
           {this.state.videoLoad && <div>
+            <div className="buttons has-addons is-centered" style={{marginBottom:0}}>
+                <button className="button is-small" onClick={this.seekRelative.bind(this, -600 / this.state.fps)}>
+                  <span className="icon is-small">
+                    <i className="fas fa-fast-backward"></i>
+                  </span>
+                </button>
+                <button className="button is-small" onClick={this.seekRelative.bind(this, -1 / this.state.fps)}>
+                  <span className="icon is-small">
+                    <i className="fas fa-step-backward"></i>
+                  </span>
+                </button>
+                {this.player.paused && <button className="button is-small" onClick={this.play}>
+                  <span className="icon is-small">
+                  <i className="fas fa-play"></i>
+                </span>
+                </button>}
+                {!this.player.paused && <button className="button is-small" onClick={this.pause}>
+                  <span className="icon is-small">
+                    <i className="fas fa-pause"></i>
+                  </span>
+                </button>}
+                <button className="button is-small" onClick={this.what2.bind(this)}>
+                  <span className="icon is-small">
+                    <i className="fas fa-dragon"></i>
+                  </span>
+                </button>
+                <button className="button is-small" onClick={this.seekRelative.bind(this, 1 / this.state.fps)}>
+                  <span className="icon is-small">
+                    <i className="fas fa-step-forward"></i>
+                  </span>
+                </button>
+                <button className="button is-small" onClick={this.seekRelative.bind(this, 600 / this.state.fps)}>
+                  <span className="icon is-small">
+                    <i className="fas fa-fast-forward"></i>
+                  </span>
+                </button>
+            </div> 
+
             <div style={{display:'block',textAlign:'center'}}>
-              <Button title="Fast Backward" icon size="mini" onClick={this.seekRelative.bind(this, -600 / this.state.fps)}> <Icon name="fast backward" /></Button>
-              <Button title="Backward" icon size="mini" onClick={this.seekRelative.bind(this, -1 / this.state.fps)}> <Icon name="backward" /></Button>
-              {this.player.paused &&
-                          <Button title="Play" icon size="mini" onClick={this.play}> <Icon name="play" /></Button>}
-              {!this.player.paused &&
-                <Button title="Pause" icon size="mini" onClick={this.pause}> <Icon name="pause" /></Button>}
-              <Button title="Forward" icon size="mini" onClick={this.seekFrameForward.bind(this, 1 / this.state.fps)}> <Icon name="forward" /></Button>
-              <Button title="Fast Forward" icon size="mini" onClick={this.seekRelative.bind(this, 600 / this.state.fps)}> <Icon name="fast forward" /></Button>
+              {this.player.currentTime.toFixed(0)} / {this.player.duration.toFixed(0)} / {this.getCurrentFrame()}
             </div>
-            <div style={{display:'block',textAlign:'center'}}>
-              {this.player.paused &&
-                <p ref={ (ptext) => this.ptext = ptext} id="progressBarText" className="text-center" style={{ fontSize: 'small'}}>
-                  {this.player.currentTime} / {this.player.duration} / {this.getCurrentFrame()}
-                </p>}
-              {!this.player.paused &&
-                <p ref={ (ptext) => this.ptextPlay = ptext} id="progressBarTextPlay" className="text-center" style={{ fontSize: 'small'}}>
-                  {this.player.currentTime} / {this.player.duration} / {this.getCurrentFrame()}
-                </p>}
-            </div>
-            <input title="PlayBack Rate" style={{display:'inline-block',width:'25%',marginRight:12}} className="ui range" onChange={(event, data) => { this.changePlaybackRateRate(parseFloat(event.target.value)); }} min={0.1} step={0.1} max={2} type="range" value={this.player.playbackRate} />
-            <p style={{display:'inline-block'}}>Playback Speed : <b>{this.player.playbackRate}x</b></p>
-            
+
+            <p>Playback Speed : <b>{this.player.playbackRate}x</b></p>
+            <input style={{width:'25%'}} onChange={(event, data) => { this.changePlaybackRateRate(parseFloat(event.target.value)); }} min={0.1} step={0.1} max={2} type="range" value={this.player.playbackRate} />
           </div>}
         </div>
         <div style={{ flexGrow: 1.5 }}>
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-around'}}>
             <div style={{ position: 'relative', border: '1px solid #eaf2f4', backgroundColor: '#f5f9fa', boxSizing: 'border-box' }}>
-              <Label size="mini" attached="top left">
+              <div>
                 Objects
-              </Label>
+              </div>
               {this.player && this.renderObjLabels('object')}
             </div>
             <div style={{ position: 'relative', border: '1px solid #eaf2f4', backgroundColor: '#f5f9fa', boxSizing: 'border-box' }}>
-              <Label size="mini" attached="top left">
+              <div>
                 Classifications
-              </Label>
+              </div>
               {this.player && this.renderClassLabels()}
             </div>
 
             <div style={{ position: 'relative', border: '1px solid #eaf2f4', backgroundColor: '#f5f9fa', boxSizing: 'border-box' }}>
               {this.player && <div>
-                <a onClick={this.superSeek.bind(this, parseFloat(this.state.timeget))}>SEEk</a>
+                <button onClick={this.superSeek.bind(this, parseFloat(this.state.timeget))}>SEEk</button>
                 <input type="text" onChange={(e) => {this.setState({ timeget: e.target.value })}} value={this.state.timeget} />
               </div>}
             </div>
@@ -1437,14 +1426,13 @@ export default class VideoAnnotator extends Component {
 
       {this.state.videoLoad && <div style={{flex:1,flexDirection:'row',margin:12,marginBottom:300}}>
         {this.renderBuffers()}
-        <input id="progressBar" title="Progress" style={{ padding: '2px', display:'block',width:'100%' }} className="ui range" onChange={(event, data) => { this.seek(event.target.value); }} min={0} step={0.0001} max={this.player.duration} type="range" value={this.player.currentTime} />
+        <input id="progressBar" title="Progress" style={{ padding: '2px', display:'block',width:'100%' }} onChange={(event, data) => { this.seek(event.target.value); }} min={0} step={0.0001} max={this.player.duration} type="range" value={this.player.currentTime} />
         {this.renderAnnotationTimelineObj()}
-        {/*this.renderAnnotationTimelineClass()*/}
       </div>}
 
-      <button onClick={this.what.bind(this)}>Get</button>
+      {/*<a onClick={this.what.bind(this)}>Get</a>
       <canvas id="canvasOutput" ></canvas>
-      <canvas id="canvasOutputCV" ></canvas>
+      <canvas id="canvasOutputCV" ></canvas>*/}
     </div>);
   }
 }

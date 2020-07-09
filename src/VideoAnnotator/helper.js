@@ -78,6 +78,10 @@ export const shortcuts = {
           qualifier: "",
           key: "left"
         },
+        predict: {
+          qualifier: "",
+          key: "p"
+        },
         delete: {
           qualifier: "",
           key: "backspace"
