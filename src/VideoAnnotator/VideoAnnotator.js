@@ -1376,7 +1376,7 @@ export default class VideoAnnotator extends Component {
                 </button>}
                 <button className="button is-small" onClick={this.what2.bind(this)}>
                   <span className="icon is-small">
-                    <i className="fas fa-dragon"></i>
+                    <i className="fas fa-dragon" style={{color:'#a657de'}}></i>
                   </span>
                 </button>
                 <button className="button is-small" onClick={this.seekRelative.bind(this, 1 / this.state.fps)}>
