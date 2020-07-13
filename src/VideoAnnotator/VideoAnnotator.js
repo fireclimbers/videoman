@@ -2,6 +2,7 @@ import React, { Component } from 'react';
 import { getPoint, convertKeyToString, getWindowDimeshions, findIndex, shortcuts, videoDimensions, frameEmpty, loop } from './helper';
 import produce from "immer";
 import './hella-cutie-styles2.css';
+import MotherModal from '../components/mother-modal.jsx';
 
 const Mousetrap = require('mousetrap');
 const SVG = require('svg.js');
@@ -62,6 +63,7 @@ export default class VideoAnnotator extends Component {
       newObjLabelText: '', // Label value for creating new label
       editingObjLabelIndex: -1,
       newClassLabelText: '', // Same but with class
+      editingClassLabelIndex: -1,
       marginTop: 0,
       marginLeft: 0,
       opacity: 0.1, // opacity of inside of boxes
@@ -70,7 +72,6 @@ export default class VideoAnnotator extends Component {
       selectedObjAnnotation: {}, // The label of the currently selected annotation
       windowHeight,
       windowWidth,
-      //player: this.player,
       buffers: []
     };
     this.mousedownHandle = this.mousedownHandle.bind(this);
@@ -86,26 +87,6 @@ export default class VideoAnnotator extends Component {
   componentDidMount() {
     window.addEventListener('resize', this.resizeWindow);
     setTimeout(this.setBuffers.bind(this), 500);
-  }
-  getImg(e) {
-    let video = document.getElementById('theviceo');
-    let canvas = document.getElementById('canvasOutput');    
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    video.setAttribute('crossOrigin', 'Anonymous');
-    canvas.setAttribute('crossOrigin', 'Anonymous');
-    let ctx = canvas.getContext('2d'); 
-    ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
-    let imgData = ctx.getImageData(0,0,video.videoWidth,video.videoHeight);
-    /*canvas.toBlob() = (blob) => {
-      const img = new Image();
-      img.src = window.URL.createObjectUrl(blob);
-    };*/
-
-    //let mat = window.cv.imread(canvas);
-    let mat = window.cv.matFromImageData(imgData);
-    window.cv.imshow('canvasOutputCV', mat);
-    mat.delete();
   }
   what2() {
     const f = this.getCurrentFrame();
@@ -314,8 +295,6 @@ export default class VideoAnnotator extends Component {
       return;
     }
 
-    // what is going on here
-
     // elapsed since start time
     let timeTraveled = (ts - (this.state.animationStartTime ? this.state.animationStartTime : window.performance.now())) / 1000;
 
@@ -323,7 +302,6 @@ export default class VideoAnnotator extends Component {
     // 0.9 / 30 * 1 = 0.03
     // why 0.9?
     let threshold = ( 0.9 / (this.state.fps * this.player.playbackRate));
-
 
     if (!this.DrawBoard) this.DrawBoard = SVG(this.svgId).size(this.state.videoWidth, this.state.videoHeight);
     
@@ -335,8 +313,6 @@ export default class VideoAnnotator extends Component {
         return;
       }
     }
-
-    // ????????
 
     const frame = this.getCurrentFrame();
     const box = this.state.annotations[frame];
@@ -778,6 +754,23 @@ export default class VideoAnnotator extends Component {
       }))
     }
   }
+  addClassLabel(item, e) {
+    var labelObj = {};
+    labelObj.type = 'class';
+    labelObj.label = item.name;
+    labelObj.values = item.values;
+
+
+    if (this.state.colors.length > 0) {
+      const color = this.state.colors[0];
+      labelObj.color = color;
+      this.setState(prevState => ({
+        labels: [...prevState.labels, labelObj],
+        colors: prevState.colors.filter(itm => itm !== color),
+        newClassLabelText: ''
+      }))
+    }
+  }
   setEditingObjLabel(index,label, e) {
     this.setState({
       editingObjLabelIndex: index,
@@ -785,6 +778,27 @@ export default class VideoAnnotator extends Component {
     })
   }
   editObjLabel(e) {
+    const index = this.state.editingObjLabelIndex;
+    const value = this.state.newObjLabelText;
+    const oldLabel = this.state.labels[this.state.editingObjLabelIndex];
+
+    this.setState(
+      produce(draft => {
+        draft.labels = draft.labels.map((itm,idx) => { return idx === index ? { ...itm, label: value } : itm });
+        draft.editingObjLabelIndex = -1;
+        draft.newObjLabelText = '';
+
+        for (var key in draft.annotations) {
+          if (!draft.annotations.hasOwnProperty(key)) continue;
+
+          draft.annotations[key][value] = { ...draft.annotations[key][oldLabel.label]};
+          delete draft.annotations[key][oldLabel.label];
+
+        }
+      })
+    )
+  }
+  editClassLabel(e) {
     const index = this.state.editingObjLabelIndex;
     const value = this.state.newObjLabelText;
     const oldLabel = this.state.labels[this.state.editingObjLabelIndex];
@@ -902,7 +916,7 @@ export default class VideoAnnotator extends Component {
                   <i className="fas fa-exchange-alt"></i>
                 </span>
               </button>
-              <button className="button is-small is-primary" onClick={this.removeLabel.bind(this,item.label)} key={item.label+index+'3'} id={item.label+index+'3'} style={{ backgroundColor: item.color }}>
+              <button className="button is-small" onClick={this.removeLabel.bind(this,item.label)} key={item.label+index+'3'} id={item.label+index+'3'}>
                 <span className="icon is-small">
                   <i className="fas fa-trash-alt"></i>
                 </span>
@@ -914,38 +928,60 @@ export default class VideoAnnotator extends Component {
     </div>);
   }
   renderClassLabels() {
-    const arrs = [];
     const labels = this.state.labels.filter((itm) => { return itm.type === 'class' });
     const frame = this.getCurrentFrame();
-    for (let i=0;i<labels.length;i++) {
-      arrs.push(<div><div className="buttons has-addons">
-          <button className="button is-static is-small is-primary">
-            {labels[i].label}
-          </button>
-        {labels[i].values.map((item,index) => {
-          let bgC = labels[i].color;
-
-          if (this.state.annotations[frame] && this.state.annotations[frame][labels[i].label] && this.state.annotations[frame][labels[i].label].value === item) {
-            bgC = 'grey';
-          }
-
-          let func = this.toggleLabel;
-
-          let s = item;
-          if (s === true) {
-            s = 'Start';
-          }
-          if (s === false) {
-            s = 'End';
-          }
-
-          return <button className="button is-small is-primary" key={labels[i].label+index} onClick={func.bind(this, labels[i],item)} style={{ backgroundColor: bgC }}>{s}</button>
-        })}
-      </div></div>)
-    }
     return ( <div>
+      <div>
+        <div className="field has-addons">
+          <button className="button is-small" onClick={() => this.setState({ showModal: true, currentLabel: {}})}>Add label</button>
+          {/*<div className="control">
+            <input className="input is-small" value={this.state.newClassLabelText} onChange={(event) => this.setState({newClassLabelText: event.target.value })} placeholder="Enter label..." />
+          </div>
+          {this.state.editingClassLabelIndex === -1 && <div className="control">
+            <button className="button is-small" onClick={this.addClassLabel.bind(this,'binary')}>Binary</button>
+          </div>}
+          {this.state.editingClassLabelIndex === -1 && <div className="control">
+            <button className="button is-small" onClick={this.addClassLabel.bind(this,'multi')}>Multi</button>
+          </div>}
+          {this.state.editingClassLabelIndex > -1 && <div className="control">
+            <button className="button is-small" onClick={this.editClassLabel.bind(this)}>+</button>
+          </div>}*/}
+        </div>
+      </div>
       <div style={{ overflow: 'auto', height: '200px'}}>
-        {arrs}
+        {labels.map((item,index) => {
+          return <div key={item.label}>
+            <div className="buttons has-addons">
+              <button className="button is-static is-small is-primary">
+                {item.label}
+              </button>
+              {item.values.map((item2,index2) => {
+                let bgC = item.color;
+
+                if (this.state.annotations[frame] && this.state.annotations[frame][item.label] && this.state.annotations[frame][item.label].value === item2) {
+                  bgC = 'grey';
+                }
+
+                let func = this.toggleLabel;
+
+                let s = item2;
+                if (s === true) {
+                  s = 'Start';
+                }
+                if (s === false) {
+                  s = 'End';
+                }
+
+                return <button className="button is-small is-primary" key={item.label+index+s} onClick={func.bind(this, item,item2)} style={{ backgroundColor: bgC }}>{s}</button>
+              })}
+              <button className="button is-small" onClick={this.removeLabel.bind(this,item.label)}>
+                <span className="icon is-small">
+                  <i className="fas fa-trash-alt"></i>
+                </span>
+              </button>
+            </div>
+          </div>
+        })}
       </div>
     </div>);
   }
@@ -1158,16 +1194,17 @@ export default class VideoAnnotator extends Component {
   }
   exportJson(e) {
     var exportObj = {};
-    exportObj.content = this.state.video;
+    exportObj.content = this.state.video.replace('_unique','');
     exportObj.width = this.state.origVideoWidth;
     exportObj.height = this.state.origVideoHeight;
     exportObj.fps = this.state.fps;
     exportObj.labels = this.state.labels;
     exportObj.annotations = this.state.annotations;
+    exportObj.currentFrame = this.getCurrentFrame();
 
     var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj));
     var dlAnchorElem = document.createElement("a");
-    dlAnchorElem.setAttribute("href",     dataStr     );
+    dlAnchorElem.setAttribute("href", dataStr);
     dlAnchorElem.setAttribute("download", "export.json");
     document.body.appendChild(dlAnchorElem); // Required for FF
     dlAnchorElem.click();
@@ -1181,7 +1218,8 @@ export default class VideoAnnotator extends Component {
     }
 
     var content = obj.content.split('/');
-    content = 'https://anno-test-ation.s3.us-east-2.amazonaws.com/dev/videos/'+content[content.length-1].replace('.mp4','_unique.mp4');
+    content = 'https://anno-test-ation.s3.us-east-2.amazonaws.com/dev/videos/'+content[content.length-1]
+    if (content.indexOf('_unique') === -1) content = content.replace('.mp4','_unique.mp4').replace('.mkv','_unique.mkv');
 
     this.setState(prevState => ({
       video: content,
@@ -1192,6 +1230,7 @@ export default class VideoAnnotator extends Component {
       annotations: obj.annotations,
       canvasSet: false,
       videoLoad: false,
+      currentFrame: obj.currentFrame,
       colors: prevState.colors.filter(itm => usedColors.indexOf(itm) === -1 )
     }))
     this.player.source = obj.content;
@@ -1333,6 +1372,14 @@ export default class VideoAnnotator extends Component {
                       marginLeft = Math.abs(width - this.state.windowWidth) / 2;
                     }
                     this.setState({ videoLoad: true, videoHeight: height, marginTop, marginLeft, videoWidth: width });
+                    if (this.state.currentFrame) {
+                      const currentFrame = this.state.currentFrame;
+                      this.setState({
+                        currentFrame: null
+                      }, () => {
+                        this.seek(currentFrame/this.state.fps);
+                      })
+                    }
                   }}
                   width={this.state.windowWidth} height={this.state.windowHeight}
                   preload="auto"
@@ -1430,9 +1477,13 @@ export default class VideoAnnotator extends Component {
         {this.renderAnnotationTimelineObj()}
       </div>}
 
-      {/*<a onClick={this.what.bind(this)}>Get</a>
-      <canvas id="canvasOutput" ></canvas>
-      <canvas id="canvasOutputCV" ></canvas>*/}
+      <MotherModal
+        showModal={this.state.showModal}
+        currentItem={this.state.currentLabel || {}}
+        submitModal={this.addClassLabel.bind(this)}
+        closeModal={() => this.setState({showModal: false})}
+        title={'Class label'}/>
+
     </div>);
   }
 }
