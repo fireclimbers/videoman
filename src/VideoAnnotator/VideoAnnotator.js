@@ -56,6 +56,7 @@ export default class VideoAnnotator extends Component {
           color: '#00897b'
         }*/
       ],
+      videoTitle: '',
       newBox: [], //values for when drawing new box
       selectedObjLabel: {}, // will have these properties: {label, value (single), color, type}
       animationStartTime: undefined,
@@ -414,6 +415,7 @@ export default class VideoAnnotator extends Component {
       const frame = Math.round(seconds*this.state.fps);
       const newseconds = frame/this.state.fps;
       this.player.currentTime = newseconds;
+      document.getElementById('progressBar').blur();
     }
   }
   superSeek(seconds) {
@@ -1205,7 +1207,7 @@ export default class VideoAnnotator extends Component {
     var dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj));
     var dlAnchorElem = document.createElement("a");
     dlAnchorElem.setAttribute("href", dataStr);
-    dlAnchorElem.setAttribute("download", "export.json");
+    dlAnchorElem.setAttribute("download", this.state.videoTitle+"_annotated.json");
     document.body.appendChild(dlAnchorElem); // Required for FF
     dlAnchorElem.click();
   }
@@ -1218,11 +1220,13 @@ export default class VideoAnnotator extends Component {
     }
 
     var content = obj.content.split('/');
+    var newTitle = content[content.length-1];
     content = 'https://anno-test-ation.s3.us-east-2.amazonaws.com/dev/videos/'+content[content.length-1]
     if (content.indexOf('_unique') === -1) content = content.replace('.mp4','_unique.mp4').replace('.mkv','_unique.mkv');
 
     this.setState(prevState => ({
       video: content,
+      videoTitle: newTitle,
       origVideoHeight: obj.height,
       origVideoWidth: obj.width,
       fps: obj.fps,
@@ -1339,9 +1343,9 @@ export default class VideoAnnotator extends Component {
                     Choose a file…
                   </span>
                 </span>
-                {/*<span className="file-name">
-                  Screen Shot 2017-07-29 at 15.54.25.png
-                </span>*/}
+                <span className="file-name">
+                  {this.state.videoTitle}
+                </span>
               </label>
             </div>
           </p>
